@@ -284,6 +284,13 @@ public:
         return false;
     }
     
+    void on_redraw() override
+    {
+        _main->redraw();
+        drawPlayer();
+        drawBorders();
+    }
+
     void on_idle() override
     {
         static int lastPlayPos = 0;

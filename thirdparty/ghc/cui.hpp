@@ -236,6 +236,7 @@ protected:
     void yield();
     virtual void on_idle() {}
     virtual void on_mouse(const MEVENT& event) {}
+    virtual void on_redraw() {}
     virtual void on_resize(int w, int h) {}
     virtual void on_event(int event) {}
     virtual void on_init() {}
@@ -849,6 +850,7 @@ GHC_INLINE void application::yield()
             break;
     }
     std::remove_if(_windows.begin(), _windows.end(), [](std::weak_ptr<window>& win){ return win.expired(); });
+    on_redraw();
     ::refresh();
 }
 
