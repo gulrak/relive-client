@@ -1,6 +1,10 @@
-# reLiveCUI
+# reLive-Clients
 
-A live show replay program for experiencing past scene-related shows and podcasts.
+_Live show replay clients for experiencing past scene-related shows and podcasts._
+
+This repository collects my current work on reLive client software. It is a full rework of the original code I wrote for [reLiveQt](https://relive.gulrak.net/reliveqt).
+
+Initially there is only a curses based client, named **reLiveCUI**, and it is developed and tested on macOS and Ubuntu 18.04, but more supported systems are planned.
 
 ## Usage:
 
@@ -22,12 +26,14 @@ A live show replay program for experiencing past scene-related shows and podcast
 
 ### Screenshots
 
-![Stream View](https://dev.gulrak.de/gulrak/reLiveCUI/raw/master/screenshots/relivecui-macos-streams_v0.3.20.png)
-![Chat View](https://dev.gulrak.de/gulrak/reLiveCUI/raw/master/screenshots/relivecui-macos-chat_v0.3.20.png)
+These screenshots where takon on an Ubuntu 18.04 system:
+
+![Stream View](https://github.com/gulrak/relive-client/blob/master/screenshots/relivecui-linux-streams_v0.3.33.png?raw=true)
+![Chat View](https://github.com/gulrak/relive-client/blob/master/screenshots/relivecui-linux-chat_v0.3.33.png?raw=true)
 
 ## Legal Info
 
-**reLiveCUI v0.3**<br>
+**reLiveCUI v0.4**<br>
 _Copyright (c) 2019, Steffen Schümann <s.schuemann@pobox.com><br>
 All rights reserved._
 
@@ -58,21 +64,9 @@ A C++ header-only HTTP/HTTPS server and client library (MIT license)
 
 ----
 
-https://github.com/HowardHinnant/date
-
-A date and time library based on the C++11/14/17 `<chrono>` header (MIT license)
-
-----
-
 https://github.com/gulrak/filesystem
 
 An implementation of C++17 std::filesystem for C++11 /C++14/C++17 on Windows, macOS and Linux. (BSD-3-Clause license)
-
-----
-
-https://fmt.dev
-
-A modern formatting library (Copyright (c) 2012 - present, Victor Zverovich)
 
 ----
 
