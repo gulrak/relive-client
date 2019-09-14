@@ -1,6 +1,10 @@
-# reLiveCUI
+# reLive-Clients
 
-A live show replay program for experiencing past scene-related shows and podcasts.
+_Live show replay clients for experiencing past scene-related shows and podcasts._
+
+This repository collects my current work on reLive client software. It is a full rework of the original code I wrote for [reLiveQt](https://relive.gulrak.net/reliveqt).
+
+Initially there is only a curses based client, named **reLiveCUI**, and it is developed and tested on macOS and Ubuntu 18.04, but more supported systems are planned.
 
 ## Usage:
 
@@ -22,8 +26,10 @@ A live show replay program for experiencing past scene-related shows and podcast
 
 ### Screenshots
 
-![Stream View](https://dev.gulrak.de/gulrak/reLiveCUI/raw/master/screenshots/relivecui-macos-streams_v0.3.20.png)
-![Chat View](https://dev.gulrak.de/gulrak/reLiveCUI/raw/master/screenshots/relivecui-macos-chat_v0.3.20.png)
+These screenshots where takon on an Ubuntu 18.04 system:
+
+![Stream View](https://github.com/gulrak/relive-client/blob/master/screenshots/relivecui-linux-streams_v0.3.33.png?raw=true)
+![Chat View](https://github.com/gulrak/relive-client/blob/master/screenshots/relivecui-linux-chat_v0.3.33.png?raw=true)
 
 ## Legal Info
 
