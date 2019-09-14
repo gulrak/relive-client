@@ -534,7 +534,7 @@ public:
         if(validTerminal()) {
             drawBox(0, 0, width(), height()-1);
             drawHLine(0, height() - 5, width(), ACS_LTEE, ACS_RTEE);
-            std::string appName = relive::appName() + "-v" + RELIVECUI_VERSION_STRING_SHORT;
+            std::string appName = relive::appName() + "-v" + RELIVE_VERSION_STRING_SHORT;
             print(width() - appName.length() - 1, 0, appName);
             if(!_title.empty()) {
                 print((width() - _title.length())/2, 0, " "+_title+" ", A_REVERSE);
@@ -601,9 +601,9 @@ public:
                         _main.reset();
                         if(g_info.find("@VERSION@") != std::string::npos) {
                             auto pos = g_info.find("@VERSION@");
-                            g_info.replace(pos, 9, std::string(RELIVECUI_VERSION_STRING_LONG));
+                            g_info.replace(pos, 9, std::string(RELIVE_VERSION_STRING_LONG));
                             pos = g_info.find("@VERLINE@");
-                            g_info.replace(pos, 9, std::string(std::strlen(RELIVECUI_VERSION_STRING_LONG), '-'));
+                            g_info.replace(pos, 9, std::string(std::strlen(RELIVE_VERSION_STRING_LONG), '-'));
                         }
                         _main = create_window<ghc::cui::text_view>(1, 1, width()-2, height()-6, g_info);
                         _title = "Info";
@@ -741,7 +741,7 @@ int main(int argc, char* argv[])
             exit(0);
         });
         parser.onOpt({"-v", "--version"}, "Show program version and exit.", [&](std::string){
-            std::cout << "reLiveCUI " << RELIVECUI_VERSION_STRING_LONG << std::endl;
+            std::cout << "reLiveCUI " << RELIVE_VERSION_STRING_LONG << std::endl;
             exit(0);
         });
         parser.onOpt({"-l", "--list-devices"}, "Dump a list of found and supported output devices and exit.", [&](std::string){

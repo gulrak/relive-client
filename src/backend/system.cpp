@@ -115,7 +115,7 @@ std::string appName()
 
 std::string userAgent()
 {
-    static std::string userAgent = "relive/11 (" + getOS() + ") " + appName() + "/" + RELIVECUI_VERSION_STRING_LONG;
+    static std::string userAgent = "relive/11 (" + getOS() + ") " + appName() + "/" + RELIVE_VERSION_STRING_LONG;
     return userAgent;
 }
 

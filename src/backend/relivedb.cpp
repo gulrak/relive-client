@@ -153,7 +153,7 @@ ReLiveDB::ReLiveDB(std::function<void(int)> progressHandler, const ghc::net::uri
 , _busy(false)
 {
     DEBUG_LOG(1, "Database location: " << (fs::path(dataPath()) / "relive.sqlite"));
-    auto versionNum = RELIVECUI_VERSION_MAJOR * 10000 + RELIVECUI_VERSION_MINOR * 100 + RELIVECUI_VERSION_PATCH;
+    auto versionNum = RELIVE_VERSION_MAJOR * 10000 + RELIVE_VERSION_MINOR * 100 + RELIVE_VERSION_PATCH;
     auto dbVersion = getConfigValue(Keys::version, 0);
     if(versionNum < dbVersion) {
         throw std::runtime_error("Database version is newer (" + std::to_string(dbVersion) + ") than this applications version (" + std::to_string(versionNum) + ")!");
