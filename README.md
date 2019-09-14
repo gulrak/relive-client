@@ -27,7 +27,7 @@ A live show replay program for experiencing past scene-related shows and podcast
 
 ## Legal Info
 
-**reLiveCUI v0.3**<br>
+**reLiveCUI v0.4**<br>
 _Copyright (c) 2019, Steffen Schümann <s.schuemann@pobox.com><br>
 All rights reserved._
 
@@ -58,21 +58,9 @@ A C++ header-only HTTP/HTTPS server and client library (MIT license)
 
 ----
 
-https://github.com/HowardHinnant/date
-
-A date and time library based on the C++11/14/17 `<chrono>` header (MIT license)
-
-----
-
 https://github.com/gulrak/filesystem
 
 An implementation of C++17 std::filesystem for C++11 /C++14/C++17 on Windows, macOS and Linux. (BSD-3-Clause license)
-
-----
-
-https://fmt.dev
-
-A modern formatting library (Copyright (c) 2012 - present, Victor Zverovich)
 
 ----
 
