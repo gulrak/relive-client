@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=reLiveCUI v0.3
+Type=Application
+Exec=gnome-terminal --geometry=105x30 -e relivecui
+Terminal=true
+

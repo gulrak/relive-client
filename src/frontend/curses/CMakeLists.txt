@@ -1,0 +1,29 @@
+
+set(CURSES_NEED_NCURSES TRUE)
+if(NOT APPLE)
+    set(CURSES_NEED_WIDE TRUE)
+endif()
+find_package(Curses REQUIRED)
+
+include_directories(${CURSES_INCLUDE_DIR})
+
+#if(APPLE)
+#    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/relivecui.command ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/relivecui.command)
+#endif()
+add_executable(relivecui main.cpp info.hpp config.hpp ../../../thirdparty/ghc/cui.hpp)
+target_link_libraries(relivecui relive-backend ${CURSES_LIBRARIES} ${SSL_BACKEND} ${AUDIO_BACKEND_LIBRARIES} ${SQLITE3_TARGET} Threads::Threads)
+
+install(TARGETS relivecui DESTINATION bin)
+
+set(CPACK_BINARY_DEB "ON")
+set(CPACK_GENERATOR "DEB")
+set(CPACK_SYSTEM_NAME "${HOST_OS}")
+set(CPACK_PACKAGE_NAME "relivecui")
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_PACKAGE_CONTACT "s.schuemann@pobox.com")
+set(CPACK_PACKAGE_DESCRIPTION "A curses based stream replayer for reLive archives (http://re-live.nu)")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://relive.gulrak.net")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+include(CPack)
