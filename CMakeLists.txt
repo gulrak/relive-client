@@ -13,6 +13,7 @@ option(USE_RTAUDIO_BACKEND "Use RtAudio as audio backend." ON)
 option(USE_PORTAUDIO_BACKEND "Use PortAudio as audio backend." OFF)
 option(USE_OPENSSL "Use OpenSSL instead ot LibreSSL" OFF)
 option(USE_SYSTEM_SQLITE3 "Use system provided sqlite3 libs" OFF)
+option(BUILD_WITH_TESTS "Compile test too" ON)
 
 find_package(Threads REQUIRED)
 
@@ -112,4 +113,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 add_subdirectory(src/backend)
 add_subdirectory(src/frontend)
 
-
+if(BUILD_WITH_TESTS)
+    add_subdirectory(test)
+endif()

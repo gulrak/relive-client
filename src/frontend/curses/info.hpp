@@ -1,23 +1,27 @@
 static std::string g_info{
     R"raw(
+reLiveCUI
+
+A live show replay client to experience past scene-related shows and podcasts from https://reLive.nu.
+    
 Usage:
 ======
 
-* Use the function keys to switch screens, cursor up/down to select and/or scroll,
-return to activate something. You need to select a station to get a stream list,
-you need to select a stream to see a track list.
-
+* Use the function keys to switch screens, cursor up/down to select and/or scroll, return to activate something. You need to select a station to get a stream list, you need to select a stream to see a track list and the stream replay is started.
 * Page-up/page-down can be used to skip through a list/text.
-
-* Space is used for play/pause
-
+* Space is used for play/pause of the currently played stream
 * Volume is currently not shown, but can be changed with v/V.
 
+Features allready working:
+--------------------------
+* browse stations, streams and tracks
+* listen to archived shows
+* time synced chat output
+* a default station can be set by -s/--default-station
 
 Features still missing but planned:
 -----------------------------------
 * Mouse support
-* Chat view
 * Configuration screen
 * Database search
 * Internet radio streaming

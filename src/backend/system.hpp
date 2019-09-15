@@ -12,6 +12,7 @@ int64_t currentTime();
 std::string formattedDuration(int64_t seconds);
 std::string formattedTime(int64_t unixTimestamp);
 
+void dataPath(const std::string& path);
 std::string dataPath();
 bool isInstanceRunning();
 

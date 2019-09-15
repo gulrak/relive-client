@@ -26,6 +26,7 @@ namespace fs = ghc::filesystem;
 namespace {
 
 static std::string g_appName;
+static std::string g_dataPath;
 
 static std::string getOS()
 {
@@ -161,8 +162,17 @@ std::string formattedTime(int64_t unixTimestamp)
     return result;
 }
 
+void dataPath(const std::string& path)
+{
+    g_dataPath = path;
+}
+
 std::string dataPath()
 {
+    if(!g_dataPath.empty()) {
+        fs::create_directories(g_dataPath);
+        return g_dataPath;
+    }
     std::string dir;
     auto home = ::getenv("HOME");
     if(home) {
