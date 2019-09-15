@@ -61,6 +61,13 @@ endif()
 
 if(USE_RTAUDIO_BACKEND)
     set(RTAUDIO_PREFIX ${CMAKE_BINARY_DIR}/external/rtaudio)
+    if(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+        set(ALSA_BACKEND OFF)
+    elif(UNIX AND NOT APPLE)
+        set(ALSA_BACKEND ON)
+    else()
+        set(ALSA_BACKEND OFF)
+    endif()
     FetchExternalProject(rtaudio
         PREFIX "${RTAUDIO_PREFIX}"
         GIT_REPOSITORY "https://github.com/thestk/rtaudio.git"
@@ -70,6 +77,7 @@ if(USE_RTAUDIO_BACKEND)
             "-DRTAUDIO_BUILD_TESTING=OFF"
             "-DRTAUDIO_API_PULSE=OFF"
             "-DRTAUDIO_API_JACK=OFF"
+            "-DRTAUDIO_API_ALSA=${ALSA_BACKEND}"
     )
     find_package(RtAudio REQUIRED)
     include_directories(${RTAUDIO_INCLUDE_DIR})
