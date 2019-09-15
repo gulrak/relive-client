@@ -16,6 +16,7 @@ macOS_task:
 Ubuntu_task:
   container:
     image: ubuntu:latest
+    memory: 12
   prepare_script:
     - apt update
     - apt install -y build-essential
@@ -40,6 +41,7 @@ FreeBSD_task:
     - pkg install -y cmake
     - pkg install -y git
     - pkg install -y pkgconf
+    - pkg install -y devel/ncurses
     - mkdir build
   configure_script:
     - cd ./build
