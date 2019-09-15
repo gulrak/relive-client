@@ -1,7 +1,7 @@
 macOS_task:
   osx_instance:
     image: mojave-xcode-10.2
-  prepare_script: brew install cmake && mkdir build
+  prepare_script: brew install cmake && brew install pkg-config && mkdir build
   configure_script: cd ./build && cmake ..
   build_script: cmake --build ./build --config MinSizeRel
   test_script: .build/bin/relive-test
