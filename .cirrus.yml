@@ -9,7 +9,7 @@ macOS_task:
 Ubuntu_task:
   container:
     image: ubuntu:latest
-  prepare_script: apt update && apt install -y build-essential && apt install -y cmake && apt install -y git && apt install -y pkg-config && mkdir build 
+  prepare_script: apt update && apt install -y build-essential && apt install -y cmake && apt install -y git && apt install -y pkg-config && apt intall -y libasound2-dev && mkdir build 
   configure_script: cd ./build && cmake  -DCMAKE_BUILD_TYPE=MinSizeRel ..
   build_script: cmake --build ./build --config MinSizeRel
   test_script: ./build/bin/relive-test
