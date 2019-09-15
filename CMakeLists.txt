@@ -94,7 +94,7 @@ set(HTTPLIB_PREFIX ${CMAKE_BINARY_DIR}/external/httplib)
 FetchExternalProject(httplib
     PREFIX "${HTTPLIB_PREFIX}"
     GIT_REPOSITORY "https://github.com/gulrak/cpp-httplib.git"
-    GIT_TAG "origin/feature-response-handler-with-content-receiver"
+    GIT_TAG "master"
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
     INSTALL_COMMAND "${CMAKE_COMMAND}" -E echo ""
