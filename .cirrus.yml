@@ -23,6 +23,7 @@ Ubuntu_task:
     - apt install -y git
     - apt install -y pkg-config
     - apt install -y libasound2-dev
+    - apt install -y libncursesw5-dev
     - mkdir build 
   configure_script:
     - cd ./build
