@@ -29,6 +29,7 @@ else()
     FetchExternalProject(libressl
         PREFIX "${LIBRESSL_PREFIX}"
         URL "https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.0.0.tar.gz"
+        URL_HASH SHA1=8c63219bb6be84b75b9ffed16ca419e1ed7efbdd
         CMAKE_ARGS
             "-DLIBRESSL_APPS=OFF"
             "-DLIBRESSL_TESTS=OFF"
