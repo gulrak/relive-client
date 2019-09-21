@@ -1,11 +1,14 @@
 
-set(CURSES_NEED_NCURSES TRUE)
-if(NOT APPLE)
-    set(CURSES_NEED_WIDE TRUE)
+if(WIN32)
+    set(CURSES_LIBRARIES pdcurses)
+else()
+    set(CURSES_NEED_NCURSES TRUE)
+    if(NOT APPLE)
+        set(CURSES_NEED_WIDE TRUE)
+    endif()
+    find_package(Curses REQUIRED)
+    include_directories(${CURSES_INCLUDE_DIR})
 endif()
-find_package(Curses REQUIRED)
-
-include_directories(${CURSES_INCLUDE_DIR})
 
 #if(APPLE)
 #    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/relivecui.command ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/relivecui.command)

@@ -28,6 +28,20 @@ namespace {
 static std::string g_appName;
 static std::string g_dataPath;
 
+static std::string getSysEnv(const std::string& name)
+{
+#ifdef _WIN32
+    std::wstring result;
+    result.resize(65535);
+    auto size = ::GetEnvironmentVariableW(fs::detail::fromUtf8<std::wstring>(name).c_str(), &result[0], 65535);
+    result.resize(size);
+    return fs::detail::toUtf8(result);
+#else
+    auto env = ::getenv(name.c_str());
+    return env ? std::string(env) : "";
+#endif
+}
+
 static std::string getOS()
 {
 #ifdef __linux__
@@ -41,7 +55,7 @@ static std::string getOS()
     ZeroMemory(&info, sizeof(OSVERSIONINFOEX));
     info.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
     GetVersionEx((LPOSVERSIONINFO)&info);
-    return std::string("Windows ") + std::to_string(info.dwMajorVersion) + "." std::to_string(info.dwMinorVersion);
+    return std::string("Windows ") + std::to_string(info.dwMajorVersion) + "." + std::to_string(info.dwMinorVersion);
 #endif
 
 #if !defined(__linux__) && !defined(_WIN32)
@@ -174,6 +188,15 @@ std::string dataPath()
         return g_dataPath;
     }
     std::string dir;
+#ifdef GHC_OS_WINDOWS
+    auto localAppData = getSysEnv("localappdata");
+    if (!localAppData.empty()) {
+		dir = fs::path(localAppData) / appName();
+	}
+    else {
+        throw std::runtime_error("Need %localappdata% to create configuration directory!");
+	}
+#else
     auto home = ::getenv("HOME");
     if(home) {
 #ifdef GHC_OS_MACOS
@@ -187,12 +210,16 @@ std::string dataPath()
     else {
         throw std::runtime_error("Need $HOME to create configuration directory!");
     }
+#endif
     fs::create_directories(dir);
     return dir;
 }
     
 bool isInstanceRunning()
 {
+#ifdef GHC_OS_WINDOWS
+    return false;
+#else
     auto lockFile = fs::path(dataPath()) / (appName() + ".pid");
     DEBUG_LOG("isInstanceRunning", 1, "PID file " << lockFile);
     auto fd = open(lockFile.c_str(), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
@@ -211,6 +238,7 @@ bool isInstanceRunning()
     auto rc = ::fcntl(fd, F_SETLK, &fl);
     DEBUG_LOG("isInstanceRunning", 1, "::fcntl() returned " << rc);
     return rc == -1 ? true : false;
+#endif
 }
 
 }

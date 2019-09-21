@@ -17,6 +17,10 @@ option(BUILD_WITH_TESTS "Compile test too" ON)
 
 find_package(Threads REQUIRED)
 
+if(MSVC)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+endif()
+
 if(USE_OPENSSL)
     if(APPLE)
         set(OPENSSL_ROOT_DIR "/usr/local/opt/openssl@1.1")
@@ -80,9 +84,14 @@ if(USE_RTAUDIO_BACKEND)
             "-DRTAUDIO_API_ALSA=${ALSA_BACKEND}"
     )
     find_package(RtAudio REQUIRED)
+	message(STATUS "RtAudio lib: ${RTAUDIO_LIBRARIES}")
     include_directories(${RTAUDIO_INCLUDE_DIR})
-    link_directories(${RTAUDIO_PC_LIBRARY_DIRS})
-    set(AUDIO_BACKEND_LIBRARIES ${RTAUDIO_LIBRARIES} "-framework CoreAudio -framework CoreFoundation")
+    link_directories(${RTAUDIO_LIBRARY_DIRS})
+	if(APPLE)
+		set(AUDIO_BACKEND_LIBRARIES ${RTAUDIO_LIBRARIES} "-framework CoreAudio -framework CoreFoundation")
+	else()
+	    set(AUDIO_BACKEND_LIBRARIES ${RTAUDIO_LIBRARIES})
+	endif()
 endif()
 if(USE_PORTAUDIO_BACKEND)
     find_package(PortAudio REQUIRED)
@@ -111,6 +120,20 @@ FetchExternalProject(minimp3
     INSTALL_COMMAND "${CMAKE_COMMAND}" -E echo ""
 )
 include_directories(${MINIMP3_PREFIX}/src/minimp3)
+
+if(WIN32)
+    set(PDCURSES_PREFIX ${CMAKE_BINARY_DIR}/external/pdcurses)
+    FetchExternalProject(pdcurses
+        PREFIX "${PDCURSES_PREFIX}"
+        GIT_REPOSITORY "https://github.com/wmcbrine/PDCurses.git"
+        GIT_TAG "3.9"
+	PATCH_COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/pdcurses/CMakeLists.txt" "${PDCURSES_PREFIX}/src/PDCurses/CMakeLists.txt"
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND "${CMAKE_COMMAND}" -E echo ""
+    )
+    add_subdirectory("${PDCURSES_PREFIX}/src/PDCurses" "${PDCURSES_PREFIX}/src/pdcurses-build")
+endif()
 
 include_directories(src thirdparty)
 

@@ -44,17 +44,18 @@
 #define _XOPEN_SOURCE
 #include <wchar.h>
 #else
-#error "Windows not supported yet"
+#include <curses.h>
 #endif
-#include <backend/logging.hpp>
 #include <algorithm>
+#include <backend/logging.hpp>
+#include <cctype>
 #include <clocale>
 #include <iostream>
-#include <stdexcept>
 #include <memory>
-#include <vector>
+#include <stdexcept>
 #include <tuple>
 #include <type_traits>
+#include <vector>
 
 #define GHC_INLINE inline
 
@@ -66,7 +67,10 @@ namespace cui {
 class cui_error : public std::runtime_error
 {
 public:
-    cui_error(const std::string& msg) : std::runtime_error(msg) {}
+    cui_error(const std::string& msg)
+        : std::runtime_error(msg)
+    {
+    }
 };
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -75,11 +79,12 @@ struct cell
 {
     enum alignment { eLeft, eCenter, eRight };
     cell(alignment a, int w, int at, const std::string& txt)
-    : align(a)
-    , width(w)
-    , attr(at)
-    , text(txt)
-    {}
+        : align(a)
+        , width(w)
+        , attr(at)
+        , text(txt)
+    {
+    }
     alignment align;
     int width;
     int attr;
@@ -88,14 +93,15 @@ struct cell
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-class window_base {
+class window_base
+{
 public:
     window_base(int x, int y, int w, int h);
     virtual ~window_base();
-    
+
     int width() const { return _width; }
     int height() const { return _height; }
-    
+
     void clear();
     void print(int x, int y, const std::string& text, int attr = 0);
     void drawBox(int x, int y, int w, int h);
@@ -109,7 +115,7 @@ protected:
     int _width = 0;
     int _height = 0;
 };
-    
+
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 class application;
@@ -120,7 +126,7 @@ public:
     ~window() override;
 
     void redraw() { on_redraw(); }
-    
+
 protected:
     virtual void on_idle() {}
     virtual void on_mouse(const MEVENT& event) {}
@@ -147,6 +153,7 @@ public:
         virtual int size() const = 0;
         virtual std::vector<cell> line(int index, int width) const = 0;
         void select(int index) { _selected = index; }
+
     private:
         friend class list_view;
         mutable int _offset = 0;
@@ -154,15 +161,15 @@ public:
     };
     list_view(int x, int y, int w, int h, const model& viewModel);
     ~list_view() override;
-    
+
     int selected();
     void select(int index);
-    
+
 protected:
     void on_redraw() override;
     void on_event(int event) override;
     void printCells(int y, const std::vector<cell>& cells, int attr = 0);
-    
+
 private:
     const model& _model;
 };
@@ -185,7 +192,7 @@ private:
     int _textLines = 0;
     bool _preformatted;
 };
-    
+
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 class log_view : public window
@@ -198,6 +205,7 @@ public:
         virtual int size() const = 0;
         virtual std::vector<cell> line(int index, int width) const = 0;
         void position(int index) { _position = index; }
+
     private:
         friend class log_view;
         mutable int _offset = 0;
@@ -205,11 +213,11 @@ public:
     };
     log_view(int x, int y, int w, int h, const model& viewModel);
     ~log_view() override;
-    
+
 protected:
     void on_redraw() override;
     void on_event(int event) override;
-    
+
 private:
     const model& _model;
 };
@@ -223,12 +231,11 @@ public:
     ~application() override;
     int run();
     void quit();
-    
+
     void destroyWindow(window_ptr window);
-    
-    template<typename Window, typename... Args>
-    typename std::enable_if<std::is_base_of<ghc::cui::window, Window>::value, typename std::shared_ptr<Window>>::type
-    create_window(Args&&... args);
+
+    template <typename Window, typename... Args>
+    typename std::enable_if<std::is_base_of<ghc::cui::window, Window>::value, typename std::shared_ptr<Window>>::type create_window(Args&&... args);
 
     static application* instance();
 
@@ -245,7 +252,7 @@ protected:
 private:
     void handle_resize();
     static application*& instance_pointer();
-    mmask_t _oldMask =  0;
+    mmask_t _oldMask = 0;
     volatile bool _quit = false;
     std::vector<std::weak_ptr<window>> _windows;
 };
@@ -273,19 +280,14 @@ GHC_INLINE int characterWidth(std::uint32_t codepoint)
 #ifndef _WIN32
     return ::wcwidth(static_cast<wchar_t>(codepoint));
 #else
-    return 1 +
-    (codepoint >= 0x1100 &&
-     (codepoint <= 0x115f ||                    // Hangul Jamo init. consonants
-      codepoint == 0x2329 || codepoint == 0x232a ||
-      (codepoint >= 0x2e80 && codepoint <= 0xa4cf && codepoint != 0x303f) || // CJK ... Yi
-      (codepoint >= 0xac00 && codepoint <= 0xd7a3) || // Hangul Syllables
-      (codepoint >= 0xf900 && codepoint <= 0xfaff) || // CJK Compatibility Ideographs
-      (codepoint >= 0xfe10 && codepoint <= 0xfe19) || // Vertical forms
-      (codepoint >= 0xfe30 && codepoint <= 0xfe6f) || // CJK Compatibility Forms
-      (codepoint >= 0xff00 && codepoint <= 0xff60) || // Fullwidth Forms
-      (codepoint >= 0xffe0 && codepoint <= 0xffe6) ||
-      (codepoint >= 0x20000 && codepoint <= 0x2fffd) ||
-      (codepoint >= 0x30000 && codepoint <= 0x3fffd)));
+    return 1 + (codepoint >= 0x1100 && (codepoint <= 0x115f ||                                                                                                // Hangul Jamo init. consonants
+                                        codepoint == 0x2329 || codepoint == 0x232a || (codepoint >= 0x2e80 && codepoint <= 0xa4cf && codepoint != 0x303f) ||  // CJK ... Yi
+                                        (codepoint >= 0xac00 && codepoint <= 0xd7a3) ||                                                                       // Hangul Syllables
+                                        (codepoint >= 0xf900 && codepoint <= 0xfaff) ||                                                                       // CJK Compatibility Ideographs
+                                        (codepoint >= 0xfe10 && codepoint <= 0xfe19) ||                                                                       // Vertical forms
+                                        (codepoint >= 0xfe30 && codepoint <= 0xfe6f) ||                                                                       // CJK Compatibility Forms
+                                        (codepoint >= 0xff00 && codepoint <= 0xff60) ||                                                                       // Fullwidth Forms
+                                        (codepoint >= 0xffe0 && codepoint <= 0xffe6) || (codepoint >= 0x20000 && codepoint <= 0x2fffd) || (codepoint >= 0x30000 && codepoint <= 0x3fffd)));
 #endif
 }
 
@@ -303,7 +305,7 @@ GHC_INLINE int utf8Increment(std::string::const_iterator& iter, const std::strin
     }
     return 1;
 }
-    
+
 GHC_INLINE int utf8Length(const std::string& utf8String)
 {
     std::string::const_iterator iter = utf8String.begin();
@@ -314,7 +316,7 @@ GHC_INLINE int utf8Length(const std::string& utf8String)
     return length;
 }
 
-GHC_INLINE std::pair<std::string,int> utf8Substr(const std::string& utf8String, std::string::size_type from, std::string::size_type count = std::string::npos)
+GHC_INLINE std::pair<std::string, int> utf8Substr(const std::string& utf8String, std::string::size_type from, std::string::size_type count = std::string::npos)
 {
     std::string::const_iterator iter = utf8String.begin();
     while (from && iter != utf8String.end()) {
@@ -325,7 +327,7 @@ GHC_INLINE std::pair<std::string,int> utf8Substr(const std::string& utf8String, 
     while (count && iter2 != utf8String.end()) {
         auto itemp = iter2;
         auto l = utf8Increment(iter2, utf8String.end());
-        if(l > count) {
+        if (l > count) {
             iter2 = itemp;
             break;
         }
@@ -343,18 +345,18 @@ GHC_INLINE std::vector<std::string> utf8Lines(const std::string& utf8String, int
     std::string line;
     int lineLength = 0, wordLength = 0;
     line.reserve(width);
-    while(iter != end) {
+    while (iter != end) {
         std::string word;
-        while(iter != end && std::isspace(*iter) && *iter != '\n') {
+        while (iter != end && std::isspace(static_cast<unsigned char>(*iter)) && *iter != '\n') {
             ++iter;
         }
         auto wordStart = iter;
-        while(iter != end && !std::isspace(*iter)) {
+        while (iter != end && !std::isspace(static_cast<unsigned char>(*iter))) {
             wordLength += utf8Increment(iter, end);
         }
-        if(wordLength) {
+        if (wordLength) {
             word.assign(wordStart, iter);
-            if(lineLength + wordLength + 1 < width) {
+            if (lineLength + wordLength + 1 < width) {
                 line += word + " ";
                 lineLength += wordLength + 1;
             }
@@ -365,34 +367,31 @@ GHC_INLINE std::vector<std::string> utf8Lines(const std::string& utf8String, int
             }
             wordLength = 0;
         }
-        if(*iter == '\n') {
+        if (*iter == '\n') {
             lines.push_back(line);
             ++iter;
             line.clear();
             lineLength = 0;
         }
     }
-    if(lineLength) {
+    if (lineLength) {
         lines.push_back(line);
     }
     return lines;
 }
-    
-    
-}
+
+}  // namespace detail
 
 GHC_INLINE window_base::window_base(int x, int y, int w, int h)
-: _xpos(x)
-, _ypos(y)
-, _width(w)
-, _height(h)
+    : _xpos(x)
+    , _ypos(y)
+    , _width(w)
+    , _height(h)
 {
 }
 
-GHC_INLINE window_base::~window_base()
-{
-}
-    
+GHC_INLINE window_base::~window_base() {}
+
 GHC_INLINE void window_base::clear()
 {
     fill(' ');
@@ -400,37 +399,37 @@ GHC_INLINE void window_base::clear()
 
 GHC_INLINE void window_base::print(int x, int y, const std::string& text, int attr)
 {
-    if(attr) {
+    if (attr) {
         attron(attr);
     }
     mvaddstr(_ypos + y, _xpos + x, text.c_str());
-    if(attr) {
+    if (attr) {
         attroff(attr);
     }
 }
 
 GHC_INLINE void window_base::drawBox(int x, int y, int w, int h)
 {
-    if(w>=2 && h>=2) {
+    if (w >= 2 && h >= 2) {
         mvaddch(_ypos + y, _xpos + x, ACS_ULCORNER);
-        mvaddch(_ypos + y, _xpos + x+w-1, ACS_URCORNER);
-        mvaddch(_ypos + y+h-1, _xpos + x, ACS_LLCORNER);
-        mvaddch(_ypos + y+h-1, _xpos + x+w-1, ACS_LRCORNER);
-        drawHLine(x+1, y, w-2);
-        drawHLine(x+1, y+h-1, w-2);
-        drawVLine(x, y+1, h-2);
-        drawVLine(x+w-1, y+1, h-2);
+        mvaddch(_ypos + y, _xpos + x + w - 1, ACS_URCORNER);
+        mvaddch(_ypos + y + h - 1, _xpos + x, ACS_LLCORNER);
+        mvaddch(_ypos + y + h - 1, _xpos + x + w - 1, ACS_LRCORNER);
+        drawHLine(x + 1, y, w - 2);
+        drawHLine(x + 1, y + h - 1, w - 2);
+        drawVLine(x, y + 1, h - 2);
+        drawVLine(x + w - 1, y + 1, h - 2);
     }
 }
 
 GHC_INLINE void window_base::drawHLine(int x, int y, int w, chtype lch, chtype rch)
 {
     mvhline(_ypos + y, _xpos + x, ACS_HLINE, w);
-    if(lch) {
+    if (lch) {
         mvaddch(_ypos + y, _xpos + x, lch);
     }
-    if(rch) {
-        mvaddch(_ypos + y, _xpos + x+w-1, rch);
+    if (rch) {
+        mvaddch(_ypos + y, _xpos + x + w - 1, rch);
     }
 }
 
@@ -442,7 +441,7 @@ GHC_INLINE void window_base::drawVLine(int x, int y, int h)
 GHC_INLINE void window_base::fill(char c)
 {
     auto fs = std::string(_width, c);
-    for(int y = 0; y < _height; ++y) {
+    for (int y = 0; y < _height; ++y) {
         print(0, y, fs);
     }
 }
@@ -450,13 +449,11 @@ GHC_INLINE void window_base::fill(char c)
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 GHC_INLINE window::window(int x, int y, int w, int h)
-: window_base(x, y, w, h)
+    : window_base(x, y, w, h)
 {
 }
 
-GHC_INLINE window::~window()
-{
-}
+GHC_INLINE window::~window() {}
 
 GHC_INLINE void window::handle_resize(int w, int h)
 {
@@ -471,9 +468,7 @@ GHC_INLINE list_view::list_view(int x, int y, int w, int h, const model& viewMod
 {
 }
 
-GHC_INLINE list_view::~list_view()
-{
-}
+GHC_INLINE list_view::~list_view() {}
 
 GHC_INLINE int list_view::selected()
 {
@@ -482,7 +477,7 @@ GHC_INLINE int list_view::selected()
 
 GHC_INLINE void list_view::select(int index)
 {
-    if(!_model.size()) {
+    if (!_model.size()) {
         _model._selected = -1;
     }
     _model._selected = index < _model.size() ? _model._selected : _model.size() - 1;
@@ -492,28 +487,28 @@ GHC_INLINE void list_view::select(int index)
 GHC_INLINE void list_view::printCells(int y, const std::vector<cell>& cells, int attr)
 {
     print(0, y, std::string(width(), ' '), attr);
-    if(!cells.empty()) {
+    if (!cells.empty()) {
         int x = 0;
-        for(const auto& c : cells) {
+        for (const auto& c : cells) {
             auto len = detail::utf8Length(c.text);
             std::string text = c.text;
-            if(len > c.width) {
+            if (len > c.width) {
                 std::tie(text, len) = detail::utf8Substr(text, 0, c.width);
             }
             switch (c.align) {
                 case cell::eLeft:
-                    if(c.width) {
+                    if (c.width) {
                         print(x, y, text, c.attr | attr);
                     }
                     break;
                 case cell::eCenter:
-                    if(c.width) {
+                    if (c.width) {
                         auto xoff = (c.width - len) / 2;
                         print(x + xoff, y, text, c.attr | attr);
                     }
                     break;
                 case cell::eRight:
-                    if(c.width) {
+                    if (c.width) {
                         print(x + c.width - len, y, text, c.attr | attr);
                     }
                     break;
@@ -527,53 +522,53 @@ GHC_INLINE void list_view::on_redraw()
 {
     clear();
     int size = _model.size();
-    if(_model._selected >= size) {
+    if (_model._selected >= size) {
         _model._selected = size - 1;
     }
-    while(_model._selected > _model._offset + height() - 2) {
+    while (_model._selected > _model._offset + height() - 2) {
         ++_model._offset;
     }
-    while(_model._selected < _model._offset && _model._offset > 0) {
+    while (_model._selected < _model._offset && _model._offset > 0) {
         --_model._offset;
     }
     // fetch header
     auto cells = _model.line(-1, _width);
     printCells(0, cells, A_BOLD);
-    for(int i = 0; i < _height - 1; ++i) {
+    for (int i = 0; i < _height - 1; ++i) {
         auto cells = _model.line(_model._offset + i, _width);
-        if(_model._offset+i == _model._selected) {
-            printCells(i+1, cells, A_REVERSE);
+        if (_model._offset + i == _model._selected) {
+            printCells(i + 1, cells, A_REVERSE);
         }
         else {
-            printCells(i+1, cells);
+            printCells(i + 1, cells);
         }
     }
 }
-    
+
 GHC_INLINE void list_view::on_event(int event)
 {
-    if(_model.size()) {
-        switch(event) {
+    if (_model.size()) {
+        switch (event) {
             case KEY_UP:
-                if(_model._selected > 0) {
+                if (_model._selected > 0) {
                     --_model._selected;
                 }
                 break;
             case KEY_DOWN:
-                if(_model._selected < _model.size() - 1) {
+                if (_model._selected < _model.size() - 1) {
                     ++_model._selected;
                 }
                 break;
             case KEY_PPAGE: {
-                auto lines = (std::min)(height()-2, _model._selected);
-                if(lines > 0) {
+                auto lines = (std::min)(height() - 2, _model._selected);
+                if (lines > 0) {
                     _model._selected -= lines;
                 }
                 break;
             }
             case KEY_NPAGE: {
-                auto lines = (std::min)(height()-2, _model.size() - 1 - _model._selected);
-                if(lines > 0) {
+                auto lines = (std::min)(height() - 2, _model.size() - 1 - _model._selected);
+                if (lines > 0) {
                     _model._selected += lines;
                 }
                 break;
@@ -596,9 +591,7 @@ text_view::text_view(int x, int y, int w, int h, const std::string& text, bool p
     _textLines = 1000;
 }
 
-text_view::~text_view()
-{
-}
+text_view::~text_view() {}
 
 void text_view::on_redraw()
 {
@@ -607,10 +600,10 @@ void text_view::on_redraw()
     std::string::const_iterator end = _text.end();
     int y = -_offset;
     std::string line;
-    if(_preformatted) {
+    if (_preformatted) {
         std::istringstream is(_text);
-        while(y < height() && std::getline(is, line, '\n')) {
-            if(y >= 0) {
+        while (y < height() && std::getline(is, line, '\n')) {
+            if (y >= 0) {
                 print(0, y, line);
             }
             ++y;
@@ -619,24 +612,24 @@ void text_view::on_redraw()
     }
     int lineLength = 0, wordLength = 0;
     line.reserve(width());
-    while(iter != end && y < height()) {
+    while (iter != end && y < height()) {
         std::string word;
-        while(iter != end && std::isspace(*iter) && *iter != '\n') {
+        while (iter != end && std::isspace(*iter) && *iter != '\n') {
             ++iter;
         }
         auto wordStart = iter;
-        while(iter != end && !std::isspace(*iter)) {
+        while (iter != end && !std::isspace(*iter)) {
             detail::utf8Increment(iter, end);
             ++wordLength;
         }
-        if(wordLength) {
+        if (wordLength) {
             word.assign(wordStart, iter);
-            if(lineLength + wordLength + 1 < width()) {
+            if (lineLength + wordLength + 1 < width()) {
                 line += word + " ";
                 lineLength += wordLength + 1;
             }
             else {
-                if(y >= 0) {
+                if (y >= 0) {
                     print(0, y, line);
                 }
                 ++y;
@@ -645,8 +638,8 @@ void text_view::on_redraw()
             }
             wordLength = 0;
         }
-        if(*iter == '\n') {
-            if(y >= 0) {
+        if (*iter == '\n') {
+            if (y >= 0) {
                 print(0, y, line);
             }
             ++iter;
@@ -659,27 +652,27 @@ void text_view::on_redraw()
 
 void text_view::on_event(int event)
 {
-    switch(event) {
+    switch (event) {
         case KEY_UP:
-            if(_offset > 0) {
+            if (_offset > 0) {
                 --_offset;
             }
             break;
         case KEY_DOWN:
-            if(_offset < _textLines) {
+            if (_offset < _textLines) {
                 ++_offset;
             }
             break;
         case KEY_PPAGE: {
-            auto lines = (std::min)(height()-2, _offset);
-            if(lines > 0) {
+            auto lines = (std::min)(height() - 2, _offset);
+            if (lines > 0) {
                 _offset -= lines;
             }
             break;
         }
         case KEY_NPAGE: {
-            auto lines = (std::min)(height()-2, _textLines - 1 - _offset);
-            if(lines > 0) {
+            auto lines = (std::min)(height() - 2, _textLines - 1 - _offset);
+            if (lines > 0) {
                 _offset += lines;
             }
             break;
@@ -693,60 +686,58 @@ void text_view::on_event(int event)
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 log_view::log_view(int x, int y, int w, int h, const model& viewModel)
-: ghc::cui::window(x, y, w, h)
-, _model(viewModel)
+    : ghc::cui::window(x, y, w, h)
+    , _model(viewModel)
 {
 }
 
-log_view::~log_view()
-{
-}
+log_view::~log_view() {}
 
 void log_view::on_redraw()
 {
     clear();
     int yy = height();
     int pos = _model._position;
-    while(yy >= 0 && pos >= 0) {
+    while (yy >= 0 && pos >= 0) {
         auto cells = _model.line(pos, width());
-        if(!cells.empty()) {
+        if (!cells.empty()) {
             int headerWidth = 0;
-            for(const auto& c : cells) {
+            for (const auto& c : cells) {
                 headerWidth += c.width ? c.width + 1 : 0;
             }
             auto lines = detail::utf8Lines(cells.back().text, width() - headerWidth);
             int x = 0;
-            for(const auto& c : cells) {
+            for (const auto& c : cells) {
                 int y = yy - lines.size();
                 switch (c.align) {
-                case cell::eLeft:
-                    if(c.width) {
-                        print(x, y, c.text, c.attr);
-                    }
-                    else {
-                        for (auto iter = lines.begin(); iter != lines.end(); ++iter ) {
-                            if(y>=0) {
-                                print(x, y, *iter, c.attr);
-                            }
-                            ++y;
+                    case cell::eLeft:
+                        if (c.width) {
+                            print(x, y, c.text, c.attr);
                         }
-                    }
-                    break;
-                case cell::eCenter:
-                    break;
-                case cell::eRight:
-                    if(c.width) {
-                        print(x + c.width - detail::utf8Length(c.text), y, c.text, c.attr);
-                    }
-                    else {
-                        for (auto iter = lines.begin(); iter != lines.end(); ++iter ) {
-                            if(y>=0) {
-                                print(x + c.width - detail::utf8Length(*iter), y, *iter, c.attr);
+                        else {
+                            for (auto iter = lines.begin(); iter != lines.end(); ++iter) {
+                                if (y >= 0) {
+                                    print(x, y, *iter, c.attr);
+                                }
+                                ++y;
                             }
-                            ++y;
                         }
-                    }
-                    break;
+                        break;
+                    case cell::eCenter:
+                        break;
+                    case cell::eRight:
+                        if (c.width) {
+                            print(x + c.width - detail::utf8Length(c.text), y, c.text, c.attr);
+                        }
+                        else {
+                            for (auto iter = lines.begin(); iter != lines.end(); ++iter) {
+                                if (y >= 0) {
+                                    print(x + c.width - detail::utf8Length(*iter), y, *iter, c.attr);
+                                }
+                                ++y;
+                            }
+                        }
+                        break;
                 }
                 x += c.width + 1;
             }
@@ -759,29 +750,26 @@ void log_view::on_redraw()
     }
 }
 
-void log_view::on_event(int event)
-{
-    
-}
+void log_view::on_event(int event) {}
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 GHC_INLINE application::application(int argc, char* argv[])
-: window_base(0, 0, 0, 0)
+    : window_base(0, 0, 0, 0)
 {
     ::setlocale(LC_ALL, "");
     WINDOW* window = ::initscr();
     getmaxyx(window, _height, _width);
-    ::mousemask(ALL_MOUSE_EVENTS|REPORT_MOUSE_POSITION, &_oldMask);
+    ::mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, &_oldMask);
     ::cbreak();
     ::noecho();
     ::curs_set(0);
     ::intrflush(window, FALSE);
     ::keypad(window, TRUE);
-    ::printf("\033[?1003h\n"); 
+    ::printf("\033[?1003h\n");
     ::halfdelay(1);
     ::refresh();
-    if(_width < 105 || _height < 10) {
+    if (_width < 105 || _height < 10) {
         ::printf("\e[8;%d;%dt", 30, 105);
         //::system("resize -s 30 105");
         //::resizeterm(30, 105);
@@ -808,7 +796,7 @@ GHC_INLINE application*& application::instance_pointer()
     return inst;
 }
 
-template<typename Window, typename... Args>
+template <typename Window, typename... Args>
 inline typename std::enable_if<std::is_base_of<ghc::cui::window, Window>::value, typename std::shared_ptr<Window>>::type application::create_window(Args&&... args)
 {
     auto win = std::make_shared<Window>(std::forward<Args>(args)...);
@@ -820,13 +808,13 @@ GHC_INLINE void application::yield()
 {
     auto event = ::getch();
 #ifndef NDEBUG
-    if(event != -1 && width() > 40 && height() > 10) {
+    if (event != -1 && width() > 40 && height() > 10) {
         auto es = std::to_string(event);
-        es = std::string(5-es.size(), ' ') + es;
+        es = std::string(5 - es.size(), ' ') + es;
         print(1, 0, "Event:" + es);
     }
 #endif
-    switch(event) {
+    switch (event) {
         case ERR:
             on_idle();
             break;
@@ -835,21 +823,25 @@ GHC_INLINE void application::yield()
             break;
         case KEY_MOUSE:
             ::MEVENT mouseEvent;
+#ifdef WIN32
+#else
             ::getmouse(&mouseEvent);
             on_mouse(mouseEvent);
+#endif
             break;
         case KEY_RESIZE:
             handle_resize();
             break;
         default:
             on_event(event);
-            for(auto& win : _windows) {
+            for (auto& win : _windows) {
                 auto w = win.lock();
-                if(w) w->on_event(event);
+                if (w)
+                    w->on_event(event);
             }
             break;
     }
-    std::remove_if(_windows.begin(), _windows.end(), [](std::weak_ptr<window>& win){ return win.expired(); });
+    std::remove_if(_windows.begin(), _windows.end(), [](std::weak_ptr<window>& win) { return win.expired(); });
     on_redraw();
     ::refresh();
 }
@@ -858,13 +850,12 @@ GHC_INLINE int application::run()
 {
     try {
         on_init();
-        while(!_quit) {
+        while (!_quit) {
             yield();
         }
         on_exit();
     }
-    catch(const std::exception& e)
-    {
+    catch (const std::exception& e) {
         std::cerr << "An error occured: " << e.what() << std::endl;
         throw;
         return -1;
@@ -882,9 +873,9 @@ GHC_INLINE void application::handle_resize()
     clear();
     getmaxyx(stdscr, _height, _width);
     on_resize(_width, _height);
-    for(const auto& window : _windows) {
+    for (const auto& window : _windows) {
         auto w = window.lock();
-        if(w) {
+        if (w) {
             w->on_resize(_width, _height);
         }
     }
