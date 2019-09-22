@@ -35,6 +35,7 @@
 //---------------------------------------------------------------------------------------
 
 #include "logging.hpp"
+#include <ghc/filesystem.hpp>
 #include <iostream>
 #include <chrono>
 #include <ctime>
@@ -116,8 +117,9 @@ LogManager::LogManager(const std::string& file)
 , _defaultLevel(0)
 {
     if(!file.empty()) {
-        _file.open(file);
-        _os = &_file;
+        auto path = ghc::filesystem::u8path(file);
+        _file.reset(new ghc::filesystem::ofstream(path));
+        _os = _file.get();
     }
     else {
         _os = &std::clog;
@@ -185,7 +187,7 @@ void LogManager::logStyle(int logStyle)
 void LogManager::setOutputFile(const std::string& file)
 {
     LogManager* logManager = instance(file);
-    if(logManager->_os != &logManager->_file) {
+    if(logManager->_os != logManager->_file.get()) {
         throw std::runtime_error("Filename cannot be set after first use of LogManager!");
     }
 }

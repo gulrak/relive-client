@@ -38,6 +38,7 @@
 #include <atomic>
 #include <fstream>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <thread>
@@ -82,7 +83,7 @@ private:
     int _logStyle;
     int _defaultLevel;
     std::ostream* _os = nullptr;
-    std::ofstream _file;
+    std::unique_ptr<std::ofstream> _file;
     std::map<std::thread::id, uint64_t> _symbolicThreadIds;
 };
 
