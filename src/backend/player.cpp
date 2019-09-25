@@ -39,6 +39,8 @@
 #include "ringbuffer.hpp"
 #include "system.hpp"
 
+namespace fs = ghc::filesystem;
+
 #define MINIMP3_ONLY_MP3
 #define MINIMP3_NONSTANDARD_BUT_LOGICAL
 #define MINIMP3_IMPLEMENTATION
