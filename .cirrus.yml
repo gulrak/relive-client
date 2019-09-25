@@ -36,7 +36,7 @@ Ubuntu_task:
     - ./build/bin/relive-test
 
 FreeBSD_task:
-  only_if: "1" == "0" # FreeBSD builds are disabled untill I have a vm to debug
+  only_if: $CIRRUS_BRANCH =~ 'do-not-build' # FreeBSD builds are disabled untill I have a vm to debug
   freebsd_instance:
     image: freebsd-12-0-release-amd64
   prepare_script:
