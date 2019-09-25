@@ -55,8 +55,6 @@
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <httplib.h>
 
-#include <ghc/filesystem.hpp>
-
 #include <algorithm>
 #include <atomic>
 #include <fstream>
@@ -65,8 +63,6 @@
 #include <stdexcept>
 #include <thread>
 #include <vector>
-
-namespace fs = ghc::filesystem;
 
 #ifdef RELIVE_RTAUDIO_BACKEND
 int playStreamCallback(void* output, void* /*input*/, unsigned int frameCount, double /*streamTime*/, RtAudioStreamStatus /*status*/, void* userData)

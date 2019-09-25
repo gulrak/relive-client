@@ -42,7 +42,6 @@
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <httplib.h>
 #include <nlohmann/json.hpp>
-#include <ghc/filesystem.hpp>
 #include <ghc/uri.hpp>
 #include <pearce/threadpool.hpp>
 #include <sqlite_orm/sqlite_orm.h>

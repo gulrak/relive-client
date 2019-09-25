@@ -374,4 +374,6 @@ GHC_INLINE bool uri::empty() const
 }  // namespace net
 }  // namespace ghc
 
+#undef GHC_INLINE
+
 #endif  // GHC_URI_H

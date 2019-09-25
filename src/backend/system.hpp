@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#define GHC_FILESYSTEM_FWD
+#include <ghc/filesystem.hpp>
 
 namespace relive {
 

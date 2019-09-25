@@ -41,7 +41,9 @@
 #else
 #include <ncursesw/ncurses.h>
 #endif
+#ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE
+#endif
 #include <wchar.h>
 #else
 #include <curses.h>

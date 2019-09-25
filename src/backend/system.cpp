@@ -1,6 +1,7 @@
 #include "logging.hpp"
 #include "system.hpp"
 #include <version/version.hpp>
+#define GHC_FILESYSTEM_IMPLEMENTATION
 #include <ghc/filesystem.hpp>
 #include <chrono>
 #include <ctime>
