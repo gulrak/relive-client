@@ -9,7 +9,8 @@ macOS_task:
     - cd ./build
     - cmake -DCMAKE_BUILD_TYPE=MinSizeRel ..
   build_script:
-    - cmake --build ./build --config MinSizeRel
+    - cd ./build
+    - cmake --build . --config MinSizeRel
     - cpack -Gproductbuild
   test_script:
     - ./build/bin/relive-test
@@ -34,7 +35,8 @@ Ubuntu_task:
     - cd ./build
     - cmake  -DCMAKE_C_COMPILER=clang-6.0 -DCMAKE_CXX_COMPILER=clang++-6.0 -DCMAKE_BUILD_TYPE=MinSizeRel ..
   build_script:
-    - cmake --build ./build --config MinSizeRel
+    - cd ./build
+    - cmake --build . --config MinSizeRel
     - cpack -GDEB
   test_script:
     - ./build/bin/relive-test
