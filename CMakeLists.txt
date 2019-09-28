@@ -15,6 +15,10 @@ option(USE_OPENSSL "Use OpenSSL instead ot LibreSSL" OFF)
 option(USE_SYSTEM_SQLITE3 "Use system provided sqlite3 libs" OFF)
 option(BUILD_WITH_TESTS "Compile test too" ON)
 
+if(UNIX AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "..." FORCE)
+endif()
+
 find_package(Threads REQUIRED)
 
 if(MSVC)
