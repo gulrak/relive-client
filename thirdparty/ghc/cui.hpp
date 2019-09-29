@@ -491,31 +491,49 @@ GHC_INLINE void list_view::printCells(int y, const std::vector<cell>& cells, int
     print(0, y, std::string(width(), ' '), attr);
     if (!cells.empty()) {
         int x = 0;
+        int ws = 0;
+        int wd = 0;
+        for (const auto& c : cells) {
+            if(c.width > 10) {
+                wd += c.width;
+            }
+            else {
+                ws += c.width;
+            }
+        }
+        auto ds = width() - ws;
+        auto wds = wd;
         for (const auto& c : cells) {
             auto len = detail::utf8Length(c.text);
+            auto cellWidth = c.width;
+            if(cellWidth > 10) {
+                cellWidth = cellWidth * ds / wds;
+                ds -= cellWidth;
+                wds -= c.width;
+            }
             std::string text = c.text;
-            if (len > c.width) {
-                std::tie(text, len) = detail::utf8Substr(text, 0, c.width);
-            }
-            switch (c.align) {
-                case cell::eLeft:
-                    if (c.width) {
+            if(cellWidth > 0) {
+                if (len > cellWidth) {
+                    std::tie(text, len) = detail::utf8Substr(text, 0, cellWidth);
+                }
+                switch (c.align) {
+                    case cell::eLeft:
                         print(x, y, text, c.attr | attr);
-                    }
-                    break;
-                case cell::eCenter:
-                    if (c.width) {
-                        auto xoff = (c.width - len) / 2;
-                        print(x + xoff, y, text, c.attr | attr);
-                    }
-                    break;
-                case cell::eRight:
-                    if (c.width) {
-                        print(x + c.width - len, y, text, c.attr | attr);
-                    }
-                    break;
+                        break;
+                    case cell::eCenter:
+                        {
+                            auto xoff = (cellWidth - len) / 2;
+                            print(x + xoff, y, text, c.attr | attr);
+                        }
+                        break;
+                    case cell::eRight:
+                        {
+                            print(x + cellWidth - len, y, text, c.attr | attr);
+                        }
+                        break;
+                }
+                x += cellWidth + 1;
             }
-            x += c.width + 1;
         }
     }
 }
