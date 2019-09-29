@@ -470,23 +470,29 @@ public:
     {
         static const std::string states[] = { "Paused:", "Playing:", "End of:", "Ending: " };
         if(validTerminal()) {
-            print(1, height() - 4, std::string(width() - 2, ' '));
+            print(1, height() - 5, std::string(width() - 2, ' '));
             auto stream = _player.currentStream();
             auto state = states[static_cast<int>(_player.state())];
-            print(1, height() - 4, _player.hasSource() ? state : "");
+            print(1, height() - 5, _player.hasSource() ? state : "");
             int playPos = -1;
             if(stream) {
                 auto space = width() - 4 - state.size();
                 if(space > 0) {
                     auto title = "[" + formattedTime(stream->_timestamp) + "] " + stream->_host + ": " + stream->_name;
                     title = title.substr(0, width() - 4 - state.size());
-                    print(2 + state.size(), height() - 4, title);
+                    print(2 + state.size(), height() - 5, title);
                 }
                 auto t = " " + formattedDuration(_player.playTime()) + "/" + formattedDuration(stream->_duration);
-                print(width() - 1 - t.size(), height() - 4, t);
+                print(width() - 1 - t.size(), height() - 5, t);
                 auto dt = (double)stream->_duration / (width() - 2);
-                playPos = int(_player.playTime() / dt + 0.5);
+                auto pt = _player.playTime();
+                playPos = int(pt / dt + 0.5);
                 if(playPos >= width() - 2) playPos = width() - 2;
+                auto trackIndex = stream->trackIndexForTime(pt);
+                if(trackIndex < stream->_tracks.size()) {
+                    const auto& track = stream->_tracks[trackIndex];
+                    print(1, height() - 4, track._artist + ": " + track._name);
+                }
             }
             if(_progress > 0) {
                 auto progstr = std::string("Updating metadata... (") + std::to_string(_progress) + "% done)";
@@ -540,7 +546,7 @@ public:
     {
         if(validTerminal()) {
             drawBox(0, 0, width(), height()-1);
-            drawHLine(0, height() - 5, width(), ACS_LTEE, ACS_RTEE);
+            drawHLine(0, height() - 6, width(), ACS_LTEE, ACS_RTEE);
             std::string appName = relive::appName() + "-v" + RELIVE_VERSION_STRING_SHORT;
             print(width() - appName.length() - 1, 0, appName);
             if(!_title.empty()) {
@@ -569,28 +575,28 @@ public:
                 switch(_activeMain) {
                     case eStationList:
                         _main.reset();
-                        _main = create_window<ghc::cui::list_view>(1, 1, width()-2, height()-6, _stationsModel);
+                        _main = create_window<ghc::cui::list_view>(1, 1, width()-2, height()-7, _stationsModel);
                         _title = "Stations";
                         break;
                     case eStreamList:
                         _main.reset();
-                        _main = create_window<ghc::cui::list_view>(1, 1, width()-2, height()-6, _streamsModel);
+                        _main = create_window<ghc::cui::list_view>(1, 1, width()-2, height()-7, _streamsModel);
                         _title = "Streams";
                         break;
                     case eTrackList:
                         _main.reset();
-                        _main = create_window<ghc::cui::list_view>(1, 1, width()-2, height()-6, _tracksModel);
+                        _main = create_window<ghc::cui::list_view>(1, 1, width()-2, height()-7, _tracksModel);
                         _title = "Tracks";
                         break;
                     case eChat:
                         _main.reset();
-                        _main = create_window<ghc::cui::log_view>(1, 1, width()-2, height()-6, _chatModel);
+                        _main = create_window<ghc::cui::log_view>(1, 1, width()-2, height()-7, _chatModel);
                         _title = "Chat";
                         break;
                     case eRadio: {
                         static const std::string notImplemented = "\n\nSorry, radio functionality is not implemented yet.";
                         _main.reset();
-                        _main = create_window<ghc::cui::text_view>(1, 1, width()-2, height()-6, notImplemented, true);
+                        _main = create_window<ghc::cui::text_view>(1, 1, width()-2, height()-7, notImplemented, true);
                         _title = "Radio";
                         break;
                     }
@@ -600,7 +606,7 @@ public:
                         std::ostringstream os;
                         _parser.usage(os);
                         configText = "Sorry, no config ui yet, please use command line:\n\n" + os.str();
-                        _main = create_window<ghc::cui::text_view>(1, 1, width()-2, height()-6, configText, true);
+                        _main = create_window<ghc::cui::text_view>(1, 1, width()-2, height()-7, configText, true);
                         _title = "Config";
                         break;
                     }
@@ -612,7 +618,7 @@ public:
                             pos = g_info.find("@VERLINE@");
                             g_info.replace(pos, 9, std::string(std::strlen(RELIVE_VERSION_STRING_LONG), '-'));
                         }
-                        _main = create_window<ghc::cui::text_view>(1, 1, width()-2, height()-6, g_info);
+                        _main = create_window<ghc::cui::text_view>(1, 1, width()-2, height()-7, g_info);
                         _title = "Info";
                         break;
                     default:
