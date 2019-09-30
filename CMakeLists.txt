@@ -151,3 +151,6 @@ add_subdirectory(src/frontend)
 if(BUILD_WITH_TESTS)
     add_subdirectory(test)
 endif()
+
+include(CPack)
+
