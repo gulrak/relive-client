@@ -11,7 +11,7 @@ macOS_task:
   build_script:
     - cd ./build
     - cmake --build . --config MinSizeRel
-    - cpack -Gproductbuild
+    - cpack -G DragNDrop
   test_script:
     - ./build/bin/relive-test
   pkg_artifacts:
@@ -37,7 +37,7 @@ Ubuntu_task:
   build_script:
     - cd ./build
     - cmake --build . --config MinSizeRel
-    - cpack -GDEB
+    - cpack -G DEB
   test_script:
     - ./build/bin/relive-test
   deb_artifacts:
