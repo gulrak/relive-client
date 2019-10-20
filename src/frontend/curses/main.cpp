@@ -471,6 +471,7 @@ public:
         static const std::string states[] = { "Paused:", "Playing:", "End of:", "Ending: " };
         if(validTerminal()) {
             print(1, height() - 5, std::string(width() - 2, ' '));
+            print(1, height() - 4, std::string(width() - 2, ' '));
             auto stream = _player.currentStream();
             auto state = states[static_cast<int>(_player.state())];
             print(1, height() - 5, _player.hasSource() ? state : "");
