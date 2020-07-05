@@ -551,7 +551,7 @@ void Player::streamSCast()
                                         }
                                         return true;
                                     },
-                                    [&](const char *data, uint64_t data_length, uint64_t offset, uint64_t content_length) {
+                                    [&](const char *data, uint64_t data_length) {
                                         //std::clog << "Received " << data_length << " bytes, offset " << offset << " [" << block << (inMetaData ? "M" : "-") << "]" << std::endl;
                                         while(data_length) {
                                             if(inMetaData) {

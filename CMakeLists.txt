@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(reLive VERSION 0.4)
+project(reLive VERSION 0.5)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -14,6 +14,9 @@ option(USE_PORTAUDIO_BACKEND "Use PortAudio as audio backend." OFF)
 option(USE_OPENSSL "Use OpenSSL instead ot LibreSSL" OFF)
 option(USE_SYSTEM_SQLITE3 "Use system provided sqlite3 libs" OFF)
 option(BUILD_WITH_TESTS "Compile test too" ON)
+option(USE_IMGUI_FRONTEND "Build IMGUI based frontend." ON)
+option(PREFER_OPENGL3_BACKEND "When active, use OpenGL3 where possible" ON)
+
 
 if(UNIX AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "..." FORCE)
@@ -131,12 +134,41 @@ if(WIN32)
         PREFIX "${PDCURSES_PREFIX}"
         GIT_REPOSITORY "https://github.com/wmcbrine/PDCurses.git"
         GIT_TAG "3.9"
-	PATCH_COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/pdcurses/CMakeLists.txt" "${PDCURSES_PREFIX}/src/PDCurses/CMakeLists.txt"
+	    PATCH_COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/pdcurses/CMakeLists.txt" "${PDCURSES_PREFIX}/src/PDCurses/CMakeLists.txt"
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
         INSTALL_COMMAND "${CMAKE_COMMAND}" -E echo ""
     )
     add_subdirectory("${PDCURSES_PREFIX}/src/PDCurses" "${PDCURSES_PREFIX}/src/pdcurses-build")
+endif()
+
+if(XUSE_IMGUI_FRONTEND)
+    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+    set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+    set(GLFW3_PREFIX ${CMAKE_BINARY_DIR}/external/glfw3)
+    FetchExternalProject(glfw3
+        PREFIX "${GLFW3_PREFIX}"
+        GIT_REPOSITORY "https://github.com/glfw/glfw.git"
+        GIT_TAG "3.3.2"
+        CMAKE_ARGS
+            "-DGLFW_BUILD_EXAMPLES=OFF"
+            "-DGLFW_BUILD_TESTS=OFF"
+            "-DGLFW_BUILD_DOCS=OFF"
+            "-DGLFW_INSTALL=OFF"
+        INSTALL_COMMAND "${CMAKE_COMMAND}" -E echo ""
+    )
+    include_directories(${GLFW3_PREFIX}/src/glfw3/include)
+    set(IMGUI_PREFIX ${CMAKE_BINARY_DIR}/external/imgui)
+    FetchExternalProject(imgui
+        PREFIX "${IMGUI_PREFIX}"
+        GIT_REPOSITORY "https://github.com/ocornut/imgui.git"
+        GIT_TAG "v1.77"
+        PATCH_COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/imgui/CMakeLists.txt" "${IMGUI_PREFIX}/src/imgui/CMakeLists.txt"
+        INSTALL_COMMAND "${CMAKE_COMMAND}" -E echo ""
+    )
+    include_directories(${IMGUI_PREFIX}/src ${IMGUI_PREFIX}/src/imgui frontend/imgui)
 endif()
 
 include_directories(src thirdparty)
@@ -145,6 +177,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+add_subdirectory(tools)
+add_subdirectory(thirdparty)
 add_subdirectory(src/backend)
 add_subdirectory(src/frontend)
 
