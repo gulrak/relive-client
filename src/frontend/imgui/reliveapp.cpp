@@ -22,8 +22,9 @@ namespace relive {
 
 class ReLiveApp : public ImGui::Application
 {
-    const float FONT_SIZE = 14;
+    const float FONT_SIZE = 16;
     const float DISPLAY_FONT_SIZE = 18;
+    enum CurrentPage { pSTATIONS, pSTREAMS, pTRACKS, pCHAT };
 
 public:
     ReLiveApp()
@@ -72,6 +73,33 @@ public:
         }
     }
 
+    void renderStations(ImVec2 pageSize)
+    {
+        ImGui::BeginTable("StationsTable", 3, 0, pageSize);
+        ImGui::TableSetupColumn("Station Name##22",200);
+        ImGui::TableSetupColumn("Streams##22", 200);
+        ImGui::TableSetupColumn("URL##22", 200);
+        ImGui::TableAutoHeaders();
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::Text("Teststation");
+        ImGui::TableSetColumnIndex(1);
+        ImGui::Text("42");
+        ImGui::TableSetColumnIndex(2);
+        ImGui::Text("https://example.com");
+        /*
+        for(const auto& station : _stations) {
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("%s", station._name.c_str());
+            ImGui::TableSetColumnIndex(2);
+            ImGui::Text("%lu", station._streams.size());
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("%s", station._webSiteUrl.c_str());
+        }*/
+        ImGui::EndTable();
+    }
+
     void renderMainWindow()
     {
         auto style = ImGui::GetStyle();
@@ -79,7 +107,32 @@ public:
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(ImVec2(_width, _height));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 4);
-        ImGui::Begin("Main Window", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBringToFrontOnFocus);  // Create a window called "Hello, world!" and append into it.
+        ImGui::Begin("Main Window", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBringToFrontOnFocus);
+
+        ImGui::Button("Stations");
+        ImGui::SameLine();
+        ImGui::Button("Streams");
+        ImGui::SameLine();
+        ImGui::Button("Tracks");
+        ImGui::SameLine();
+        ImGui::Button("Chat");
+
+        ImGui::Separator();
+
+        auto pageSize = ImVec2(_width + 8, _height - 70);
+        switch(_currentPage) {
+            case pSTATIONS:
+                renderStations(pageSize);
+                break;
+            default:
+                break;
+        }
+        ImGui::Separator();
+
+        if(_progress) {
+            ImGui::ProgressBar(_progress / 100.0f, ImVec2(-1, 0));
+        }
+
         ImGui::End();
         ImGui::PopStyleVar();
     }
@@ -96,6 +149,10 @@ private:
     ImFont* _displayFont = nullptr;
     ImFont* _monoFont = nullptr;
     std::atomic_bool _needsRefresh;
+    CurrentPage _currentPage = pSTATIONS;
+    std::vector<Station> _stations;
+    int64_t _activeStation = 0;
+    int _progress = 45;
 };
 
 }

@@ -13,10 +13,13 @@ option(USE_RTAUDIO_BACKEND "Use RtAudio as audio backend." ON)
 option(USE_PORTAUDIO_BACKEND "Use PortAudio as audio backend." OFF)
 option(USE_OPENSSL "Use OpenSSL instead ot LibreSSL" OFF)
 option(USE_SYSTEM_SQLITE3 "Use system provided sqlite3 libs" OFF)
-option(BUILD_WITH_TESTS "Compile test too" ON)
+option(BUILD_WITH_TESTS "Compile test too" OFF)
 option(USE_IMGUI_FRONTEND "Build IMGUI based frontend." ON)
 option(PREFER_OPENGL3_BACKEND "When active, use OpenGL3 where possible" ON)
 
+if(NOT BUILD_WITH_TESTS)
+    set_property(GLOBAL PROPERTY CTEST_TARGETS_ADDED 1)
+endif()
 
 if(UNIX AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "..." FORCE)
@@ -26,6 +29,10 @@ find_package(Threads REQUIRED)
 
 if(MSVC)
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+endif()
+
+if ("${CMAKE_SYSTEM_NAME}" MATCHES "(Open|Free|Net)BSD")
+    set(xBSD ON)
 endif()
 
 if(USE_OPENSSL)
@@ -70,36 +77,6 @@ else()
     set(SQLITE3_TARGET "")
 endif()
 
-if(USE_RTAUDIO_BACKEND)
-    set(RTAUDIO_PREFIX ${CMAKE_BINARY_DIR}/external/rtaudio)
-    if(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
-        set(ALSA_BACKEND OFF)
-    elseif(UNIX AND NOT APPLE)
-        set(ALSA_BACKEND ON)
-    else()
-        set(ALSA_BACKEND OFF)
-    endif()
-    FetchExternalProject(rtaudio
-        PREFIX "${RTAUDIO_PREFIX}"
-        GIT_REPOSITORY "https://github.com/thestk/rtaudio.git"
-        GIT_TAG "1cba5c90a35b0e79915dc46dd5525da2285a211b"
-        CMAKE_ARGS
-            "-DRTAUDIO_BUILD_STATIC_LIBS=ON"
-            "-DRTAUDIO_BUILD_TESTING=OFF"
-            "-DRTAUDIO_API_PULSE=OFF"
-            "-DRTAUDIO_API_JACK=OFF"
-            "-DRTAUDIO_API_ALSA=${ALSA_BACKEND}"
-    )
-    find_package(RtAudio REQUIRED)
-	message(STATUS "RtAudio lib: ${RTAUDIO_LIBRARIES}")
-    include_directories(${RTAUDIO_INCLUDE_DIR})
-    link_directories(${RTAUDIO_LIBRARY_DIRS})
-	if(APPLE)
-		set(AUDIO_BACKEND_LIBRARIES ${RTAUDIO_LIBRARIES} "-framework CoreAudio -framework CoreFoundation")
-	else()
-	    set(AUDIO_BACKEND_LIBRARIES ${RTAUDIO_LIBRARIES})
-	endif()
-endif()
 if(USE_PORTAUDIO_BACKEND)
     find_package(PortAudio REQUIRED)
     include_directories(${PORTAUDIO_LIBRARIES})
@@ -171,7 +148,7 @@ if(XUSE_IMGUI_FRONTEND)
     include_directories(${IMGUI_PREFIX}/src ${IMGUI_PREFIX}/src/imgui frontend/imgui)
 endif()
 
-include_directories(src thirdparty)
+include_directories(src thirdparty thirdparty/rtaudio)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -179,6 +156,14 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 add_subdirectory(tools)
 add_subdirectory(thirdparty)
+if(USE_RTAUDIO_BACKEND)
+    if(APPLE)
+        set(AUDIO_BACKEND_LIBRARIES rtaudio "-framework CoreAudio -framework CoreFoundation")
+    else()
+        set(AUDIO_BACKEND_LIBRARIES rtaudio)
+    endif()
+endif()
+
 add_subdirectory(src/backend)
 add_subdirectory(src/frontend)
 

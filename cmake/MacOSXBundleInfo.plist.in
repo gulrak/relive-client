@@ -31,8 +31,8 @@
         <key>NSHumanReadableCopyright</key>
         <string>${MACOSX_BUNDLE_COPYRIGHT}</string>
         <key>NSHighResolutionCapable</key>
-        <string>True</string>
+        <string>true</string>
         <key>NSSupportsAutomaticGraphicsSwitching</key>
-        <string>True</string>
+        <string>true</string>
 </dict>
 </plist>
