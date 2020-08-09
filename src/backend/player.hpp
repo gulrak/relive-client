@@ -60,6 +60,8 @@ public:
     PlayerState state() const;
     int playTime() const;
     void seekTo(int seconds);
+    void prev();
+    void next();
     int volume() const;
     void volume(int vol);
     

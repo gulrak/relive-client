@@ -105,6 +105,7 @@ void Application::setup()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
     glfwWindowHint(GLFW_COCOA_GRAPHICS_SWITCHING, GLFW_TRUE);
+    glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
 #else
     // GL 3.0 + GLSL 130
     const char* glsl_version = "#version 130";
@@ -184,8 +185,7 @@ void Application::teardown()
 
 void Application::render()
 {
-    static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
+    ImVec4 clear_color = ImGui::ColorConvertU32ToFloat4(_clearColor);
     auto start = std::chrono::steady_clock::now();
 
     // Start the Dear ImGui frame
@@ -208,6 +208,11 @@ void Application::render()
     _renderTime_us = _renderTime_us * 0.95f + renderTime.count() * 0.05f;
 
     glfwSwapBuffers(_impl->window);
+}
+
+void Application::quit()
+{
+    glfwSetWindowShouldClose(_impl->window, GLFW_TRUE);
 }
 
 void Application::run()

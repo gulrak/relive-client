@@ -157,14 +157,14 @@ void Application::teardown()
 
 void Application::render()
 {
-    static float clear_color[4] = {0.45f, 0.55f, 0.60f, 1.00f};
+    ImVec4 clear_color = ImGui::ColorConvertU32ToFloat4(_clearColor);
     int width, height;
     glfwGetFramebufferSize(_impl->window, &width, &height);
     _impl->layer.drawableSize = CGSizeMake(width, height);
     id<CAMetalDrawable> drawable = [_impl->layer nextDrawable];
 
     id<MTLCommandBuffer> commandBuffer = [_impl->commandQueue commandBuffer];
-    _impl->renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clear_color[0], clear_color[1], clear_color[2], clear_color[3]);
+    _impl->renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
     _impl->renderPassDescriptor.colorAttachments[0].texture = drawable.texture;
     _impl->renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
     _impl->renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
@@ -187,6 +187,11 @@ void Application::render()
 
     [commandBuffer presentDrawable:drawable];
     [commandBuffer commit];
+}
+
+void Application::quit()
+{
+    glfwSetWindowShouldClose(_impl->window, GLFW_TRUE);
 }
 
 void Application::run()

@@ -312,6 +312,41 @@ void Player::seekTo(int seconds)
     }
 }
 
+void Player::prev()
+{
+    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    if(_impl->_streamInfo) {
+        const Track* prevTrack = nullptr;
+        auto currentTime = playTime();
+        for(const auto& track : _impl->_streamInfo->_tracks) {
+            if(currentTime > 1 && track._time <= currentTime - 1) {
+                prevTrack = &track;
+            }
+            else {
+                break;
+            }
+        }
+        if(prevTrack) {
+            seekTo(prevTrack->_time);
+        }
+    }
+}
+
+void Player::next()
+{
+    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    if(_impl->_streamInfo) {
+        int64_t nextPos = 0;
+        auto currentTime = playTime();
+        for(const auto& track : _impl->_streamInfo->_tracks) {
+            if(track._time > currentTime) {
+                seekTo(track._time);
+                break;
+            }
+        }
+    }
+}
+
 int Player::volume() const
 {
     std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};

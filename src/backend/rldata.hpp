@@ -56,6 +56,21 @@ struct ChatMessage {
     int _time;
     MessageType _type;
     std::vector<std::string> _strings;
+
+    bool hasNick() const {
+        return !_strings.empty() && !_strings.front().empty() && _type != ChatMessage::eUnknown;
+    }
+
+    std::string nick() const {
+        if(!hasNick()) {
+            return std::string();
+        }
+        auto result = _strings.front();
+        if(result[result.length()-1] == '@') {
+            result.erase(result.length()-1);
+        }
+        return result;
+    }
 };
 
 struct Track

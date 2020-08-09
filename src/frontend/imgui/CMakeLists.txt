@@ -3,7 +3,10 @@ add_definitions(-DGL_SILENCE_DEPRECATION -DIMGUI_DEFINE_MATH_OPERATORS -DIMGUI_I
 add_subdirectory(resources)
 add_subdirectory(imguix)
 
-add_executable(reLiveG MACOSX_BUNDLE
+set(MACOSX_BUNDLE_ICON_FILE reLiveG.icns)
+set(reLiveG_ICON ${CMAKE_CURRENT_SOURCE_DIR}/resources/${MACOSX_BUNDLE_ICON_FILE})
+set_source_files_properties(${reLiveG_ICON} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+add_executable(reLiveG MACOSX_BUNDLE ${reLiveG_ICON}
     reliveapp.cpp
 )
 

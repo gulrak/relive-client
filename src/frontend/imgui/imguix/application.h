@@ -2,6 +2,7 @@
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
+#include <imgui/misc/cpp/imgui_stdlib.h>
 #include <imguix/applog.h>
 #include <imguix/resources.h>
 
@@ -14,15 +15,17 @@ class Application
 {
 public:
     const unsigned MIN_WIDTH = 800;
-    const unsigned MIN_HEIGHT = 600;
+    const unsigned MIN_HEIGHT = 500;
     Application(const std::string& title, const std::string& name = std::string());
     virtual ~Application();
 
     void run();
 
     void setWindowSize(unsigned width, unsigned height);
+    void quit();
     void onResize(unsigned width, unsigned height);
     void onRefresh();
+    void setClearColor(ImU32 col) { _clearColor = col; }
     ImU32 clearColor() const { return _clearColor; }
 
     uint32_t renderTime() const { return uint32_t(_renderTime_us); }

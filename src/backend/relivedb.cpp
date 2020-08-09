@@ -229,10 +229,10 @@ void ReLiveDB::deepFetch(Stream& stream, bool parentsOnly)
         std::lock_guard<Mutex> lock{_mutex};
         if(!parentsOnly) {
             stream._tracks = storage().get_all<Track>(where(c(&Track::_streamId) == stream._id), order_by(&Track::_time));
-            for(int i = 0; i < stream._tracks.size() - 1; ++i) {
-                stream._tracks[i]._duration = stream._tracks[i+1]._time - stream._tracks[i]._time;
-            }
             if(!stream._tracks.empty()) {
+                for(int i = 0; i < stream._tracks.size() - 1; ++i) {
+                    stream._tracks[i]._duration = stream._tracks[i+1]._time - stream._tracks[i]._time;
+                }
                 stream._tracks[stream._tracks.size()-1]._duration = stream._duration - stream._tracks[stream._tracks.size()-1]._time;
             }
         }

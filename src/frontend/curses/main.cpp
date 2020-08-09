@@ -329,9 +329,9 @@ public:
                         _needsRefresh = true;
                     }
                 }
-                int chatPos = 0;
+                int chatPos = -1;
                 for(const auto& msg : _chatModel._chat) {
-                    if(msg._time < playTime) {
+                    if(msg._time <= playTime) {
                         ++chatPos;
                     }
                     else {
