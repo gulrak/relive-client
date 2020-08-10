@@ -67,6 +67,17 @@ int findMissingGlyphs(stbtt_fontinfo& font)
     return missing;
 }
 
+void dumpRanges(stbtt_fontinfo& font)
+{
+    uint32_t cp = 1;
+    while(cp < 0x10ffffu) {
+        while(cp < 0x10ffffu && stbtt_FindGlyphIndex(&font, cp) == 0) ++cp;
+        uint32_t  start = cp++;
+        while(cp < 0x10ffffu && stbtt_FindGlyphIndex(&font, cp) != 0) ++cp;
+        std::cout << "    0x" << std::hex << start << ", 0x" << (cp - 1) << "," << std::endl;
+    }
+}
+
 int main(int argc, char* argv[])
 {
     relive::setAppName("codepointuse");
@@ -97,6 +108,22 @@ int main(int argc, char* argv[])
         else {
             std::cerr << "Error: font dir '" << fontDir << "' does not exist" << std::endl;
             std::exit(1);
+        }
+    });
+    parser.onOpt({"--dump-ranges!"}, "dump list of glyph ranges of given font", [&](const std::string& fontPath) {
+      std::vector<char> buffer;
+      auto size = fs::file_size(fontPath);
+      buffer.resize(size);
+      fs::ifstream is(fs::path(fontPath), std::ifstream::in | std::ifstream::binary);
+      is.read(&buffer.front(), size);
+        auto numFonts = stbtt_GetNumberOfFonts((const unsigned char*)buffer.data());
+        if(fs::exists(fontPath) && fs::is_regular_file(fontPath)) {
+            for(int idx = 0; idx < numFonts; ++idx) {
+                stbtt_fontinfo font;
+                stbtt_InitFont(&font, (const unsigned char*)buffer.data(), stbtt_GetFontOffsetForIndex((const unsigned char*)buffer.data(), idx));
+                std::cout << "     " << idx << ": " << font.numGlyphs << " glyphs";
+                dumpRanges(font);
+            }
         }
     });
     parser.parse();
