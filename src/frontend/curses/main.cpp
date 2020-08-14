@@ -759,6 +759,7 @@ int main(int argc, char* argv[])
             exit(0);
         });
         parser.onOpt({"-l", "--list-devices"}, "Dump a list of found and supported output devices and exit.", [&](std::string){
+#ifdef RELIVE_RTAUDIO_BACKEND
             RtAudio audio;
             audio.showWarnings(false);
             unsigned int devices = audio.getDeviceCount();
@@ -778,6 +779,7 @@ int main(int argc, char* argv[])
                     std::cout << rates << "]" << std::endl;
                 }
             }
+#endif
             exit(0);
         });
         parser.onOpt({"-s?", "--default-station?"}, "[<name>]\tSet the default station to switch to on startup, only significant part of the name is needed. Without a parameter, this resets to starting on station screen.", [&](std::string str){

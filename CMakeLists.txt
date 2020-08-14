@@ -81,7 +81,12 @@ endif()
 if(USE_PORTAUDIO_BACKEND)
     find_package(PortAudio REQUIRED)
     include_directories(${PORTAUDIO_LIBRARIES})
-    set(AUDIO_BACKEND_LIBRARIES ${PORTAUDIO_LIBRARIES} "-framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon")
+    if(APPLE)
+        set(AUDIO_BACKEND_LIBRARIES ${PORTAUDIO_LIBRARIES} "-framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon")
+    else()
+        set(AUDIO_BACKEND_LIBRARIES ${PORTAUDIO_LIBRARIES})
+    endif()
+    add_definitions(-DRELIVE_PORTAUDIO_BACKEND)
 endif()
 
 set(HTTPLIB_PREFIX ${CMAKE_BINARY_DIR}/external/httplib)
@@ -120,35 +125,6 @@ if(WIN32)
     add_subdirectory("${PDCURSES_PREFIX}/src/PDCurses" "${PDCURSES_PREFIX}/src/pdcurses-build")
 endif()
 
-if(XUSE_IMGUI_FRONTEND)
-    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-    set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
-    set(GLFW3_PREFIX ${CMAKE_BINARY_DIR}/external/glfw3)
-    FetchExternalProject(glfw3
-        PREFIX "${GLFW3_PREFIX}"
-        GIT_REPOSITORY "https://github.com/glfw/glfw.git"
-        GIT_TAG "3.3.2"
-        CMAKE_ARGS
-            "-DGLFW_BUILD_EXAMPLES=OFF"
-            "-DGLFW_BUILD_TESTS=OFF"
-            "-DGLFW_BUILD_DOCS=OFF"
-            "-DGLFW_INSTALL=OFF"
-        INSTALL_COMMAND "${CMAKE_COMMAND}" -E echo ""
-    )
-    include_directories(${GLFW3_PREFIX}/src/glfw3/include)
-    set(IMGUI_PREFIX ${CMAKE_BINARY_DIR}/external/imgui)
-    FetchExternalProject(imgui
-        PREFIX "${IMGUI_PREFIX}"
-        GIT_REPOSITORY "https://github.com/ocornut/imgui.git"
-        GIT_TAG "v1.77"
-        PATCH_COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/imgui/CMakeLists.txt" "${IMGUI_PREFIX}/src/imgui/CMakeLists.txt"
-        INSTALL_COMMAND "${CMAKE_COMMAND}" -E echo ""
-    )
-    include_directories(${IMGUI_PREFIX}/src ${IMGUI_PREFIX}/src/imgui frontend/imgui)
-endif()
-
 include_directories(src thirdparty thirdparty/rtaudio)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -163,6 +139,7 @@ if(USE_RTAUDIO_BACKEND)
     else()
         set(AUDIO_BACKEND_LIBRARIES rtaudio)
     endif()
+    add_definitions(-DRELIVE_RTAUDIO_BACKEND)
 endif()
 
 add_subdirectory(src/backend)

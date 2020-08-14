@@ -1,6 +1,8 @@
 
 #include <imguix/resources.h>
 
+#include <cassert>
+
 extern "C" {
 extern const unsigned char g_resourceData[];
 extern const int g_resourceDataSize;

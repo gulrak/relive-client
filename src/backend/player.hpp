@@ -40,7 +40,7 @@
 #include <cstdint>
 #include <memory>
 
-#define RELIVE_RTAUDIO_BACKEND
+//#define RELIVE_RTAUDIO_BACKEND
 //#define RELIVE_PORTAUDIO_BACKEND
 
 enum PlayerState { ePAUSED, ePLAYING, eENDOFSTREAM, eENDING };
@@ -48,6 +48,11 @@ enum PlayerState { ePAUSED, ePLAYING, eENDOFSTREAM, eENDING };
 class Player
 {
 public:
+    struct Device {
+        std::string name;
+        unsigned int channels;
+        unsigned int sampleRate;
+    };
     using SampleType = int16_t;
     enum Mode { eNone, eFile, eReLiveStream, eMediaStream, eSCastStream };
     Player();
@@ -72,6 +77,8 @@ public:
     std::shared_ptr<Stream> currentStream();
     
     void playMusic(unsigned char* buffer, int frames);
+
+    std::vector<Device> getOutputDevices();
 
 protected:
     void configureAudio();

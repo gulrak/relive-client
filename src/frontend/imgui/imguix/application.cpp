@@ -24,6 +24,8 @@ using namespace gl;
 #endif
 
 #include <GLFW/glfw3.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
 #include <cstdio>
 #include <chrono>
 #include <thread>
@@ -49,6 +51,12 @@ void glfw_refresh_callback(GLFWwindow* window)
     app->onRefresh();
 }
 
+void glfw_focus_callback(GLFWwindow* window, int focus)
+{
+    auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+    app->onFocus(focus == GLFW_TRUE);
+}
+
 struct Application::Private
 {
     std::string title;
@@ -56,6 +64,7 @@ struct Application::Private
     GLFWwindow* window = nullptr;
     unsigned width = 0;
     unsigned height = 0;
+    bool focus = true;
 };
 
 Application::Application(const std::string& title, const std::string& name)
@@ -82,6 +91,11 @@ void Application::setWindowSize(unsigned width, unsigned height)
     _impl->height = height;
 }
 
+void Application::setWindowTitle(const std::string& title)
+{
+    glfwSetWindowTitle(_impl->window, title.c_str());
+}
+
 void Application::onResize(unsigned width, unsigned height)
 {
     _impl->width = width;
@@ -92,6 +106,12 @@ void Application::onResize(unsigned width, unsigned height)
 void Application::onRefresh()
 {
     render();
+}
+
+void Application::onFocus(bool focus)
+{
+    _impl->focus = focus;
+    handleFocus(focus);
 }
 
 void Application::setup()
@@ -121,6 +141,11 @@ void Application::setup()
         return;
     glfwSetWindowTitle(_impl->window, _impl->title.c_str());
     glfwSetWindowSizeLimits(_impl->window, MIN_WIDTH, MIN_HEIGHT, GLFW_DONT_CARE, GLFW_DONT_CARE);
+    GLFWimage icons[1];
+    auto appImage = ResourceManager::instance().resourceForName("appicon.png");
+    icons[0].pixels = stbi_load_from_memory(appImage.data(), appImage.size(), &icons[0].width, &icons[0].height, 0, 4);
+    glfwSetWindowIcon(_impl->window, 1, icons);
+    stbi_image_free(icons[0].pixels);
     glfwMakeContextCurrent(_impl->window);
     glfwSwapInterval(1);  // Enable vsync
 
@@ -166,6 +191,7 @@ void Application::setup()
     glfwSetWindowSizeCallback(_impl->window, glfw_resize_callback);
     handleResize(_impl->width, _impl->height);
     glfwSetWindowRefreshCallback(_impl->window, glfw_refresh_callback);
+    glfwSetWindowFocusCallback(_impl->window, glfw_focus_callback);
 
     _clearColor = ImGui::ColorConvertFloat4ToU32(ImVec4(0.45f, 0.55f, 0.60f, 1.00f));
     doSetup();
@@ -215,13 +241,36 @@ void Application::quit()
     glfwSetWindowShouldClose(_impl->window, GLFW_TRUE);
 }
 
-void Application::run()
+static bool safetySync(bool focus)
 {
     using namespace std::chrono_literals;
+    static std::chrono::steady_clock::time_point cycleStart = std::chrono::steady_clock::now();
+    static int unsyncCounter = 42;
+    auto now = std::chrono::steady_clock::now();
+    auto dt = std::chrono::duration_cast<std::chrono::microseconds>(now - cycleStart).count();
+    bool sync = false;
+    if(dt < 10000 || !unsyncCounter) {
+        if(unsyncCounter) {
+            --unsyncCounter;
+        }
+        else {
+            if(focus) {
+                std::this_thread::sleep_for(std::chrono::microseconds(14000 - dt));
+            }
+            else {
+                std::this_thread::sleep_for(std::chrono::microseconds(50000 - dt));
+            }
+            sync = true;
+        }
+    }
+    cycleStart = std::chrono::steady_clock::now();
+    return sync;
+}
+
+void Application::run()
+{
     setup();
 
-    std::chrono::system_clock::time_point lastTime = std::chrono::system_clock::now();
-    int64_t dt = 0;
     // Main loop
     while (!glfwWindowShouldClose(_impl->window)) {
 
@@ -239,17 +288,7 @@ void Application::run()
 
         render();
 
-        //std::this_thread::sleep_for(14ms);
-
-        /*
-        std::cout << dt << std::endl;
-        auto now = std::chrono::system_clock::now();
-        dt = std::chrono::duration_cast<std::chrono::microseconds>(now - lastTime).count();
-        if(dt < 16500) {
-            std::this_thread::sleep_for(std::chrono::microseconds(16500 - dt));
-        }
-        lastTime = now;
-         */
+        safetySync(_impl->focus);
     }
 
     teardown();

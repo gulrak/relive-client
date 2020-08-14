@@ -116,7 +116,7 @@ struct Player::impl
     mp3dec_frame_info_t _mp3info;
 #ifdef RELIVE_RTAUDIO_BACKEND
     RtAudio _dac;
-#elif define(RELIVE_PORTAUDIO_BACKEND)
+#elif defined(RELIVE_PORTAUDIO_BACKEND)
     PaStream* _paStream;
 #endif
     PlayerState _state;
@@ -194,7 +194,7 @@ void Player::configureAudio()
     catch ( RtAudioError& e ) {
         ERROR_LOG(0, "Error while initializing audio: " << e.getMessage());
     }
-#elif define(RELIVE_PORTAUDIO_BACKEND)
+#elif defined(RELIVE_PORTAUDIO_BACKEND)
     PaStreamParameters param;
     param.channelCount = _impl->_numChannels;
     param.device = Pa_GetDefaultOutputDevice();
@@ -229,16 +229,24 @@ void Player::disableAudio()
 
 void Player::startAudio()
 {
+#ifdef RELIVE_RTAUDIO_BACKEND
     try {
         _impl->_dac.startStream();
     }
     catch ( RtAudioError& e ) {
         ERROR_LOG(0, "Error while initializing audio: " << e.getMessage());
     }
+#elif defined(RELIVE_PORTAUDIO_BACKEND)
+    auto rc = Pa_StartStream(_impl->_paStream);
+    if(rc != paNoError) {
+        ERROR_LOG(0, "Error while initializing audio: " << Pa_GetErrorText(rc));
+    }
+#endif
 }
 
 void Player::stopAudio()
 {
+    std::cout << "stop audio start" << std::endl;
 #ifdef RELIVE_RTAUDIO_BACKEND
     try {
         _impl->_dac.stopStream();
@@ -253,6 +261,7 @@ void Player::stopAudio()
         //Pa_AbortStream(_impl->_paStream);
     }
 #endif
+    std::cout << "stop audio end" << std::endl;
 }
 
 void Player::play()
@@ -275,10 +284,12 @@ void Player::play()
 
 void Player::pause()
 {
+    std::cout << "begin pause" << std::endl;
     std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
     _impl->_isPlaying = false;
     _impl->_state = ePAUSED;
     stopAudio();
+    std::cout << "end pause" << std::endl;
 }
 
 PlayerState Player::state() const
@@ -732,5 +743,22 @@ void Player::playMusic(unsigned char* buffer, int frames)
         while( len++ < frames * _impl->_numChannels )
             *dst++ = 0;
     }
+}
+
+std::vector<Player::Device> Player::getOutputDevices()
+{
+    std::vector<Device> result;
+    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+#ifdef RELIVE_RTAUDIO_BACKEND
+    unsigned int devices = _impl->_dac.getDeviceCount();
+    RtAudio::DeviceInfo info;
+    for(unsigned int i=0; i<devices; ++i) {
+        info = _impl->_dac.getDeviceInfo( i );
+        if(info.probed && info.outputChannels >= 2) {
+            result.push_back(Device{info.name, info.outputChannels, info.preferredSampleRate});
+        }
+    }
+#endif
+    return result;
 }
 

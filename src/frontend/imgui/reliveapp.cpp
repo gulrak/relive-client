@@ -40,7 +40,7 @@ class ReLiveApp : public ImGui::Application
     const float PLAY_BAR_HEIGHT = 24;
     const float PLAY_CONTROLS_WIDTH = 150;
     const float PLAY_BAR_REL_END = PLAY_CONTROLS_WIDTH + 24;
-    enum CurrentPage { pSTATIONS, pSTREAMS, pTRACKS, pCHAT };
+    enum CurrentPage { pSTATIONS, pSTREAMS, pTRACKS, pCHAT, pSETTINGS };
 
 public:
     ReLiveApp()
@@ -76,7 +76,7 @@ public:
         colors[ImGuiCol_TextDisabled]           = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
         colors[ImGuiCol_WindowBg]               = ImVec4(0.16f, 0.17f, 0.18f, 1.00f);
         colors[ImGuiCol_ChildBg]                = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-        colors[ImGuiCol_PopupBg]                = ImVec4(0.08f, 0.08f, 0.08f, 0.94f);
+        colors[ImGuiCol_PopupBg]                = ImVec4(0.25f, 0.25f, 0.25f, 1.00f);
         colors[ImGuiCol_Border]                 = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
         colors[ImGuiCol_BorderShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
         colors[ImGuiCol_FrameBg]                = ImVec4(0.39f, 0.41f, 0.42f, 1.00f);
@@ -124,7 +124,7 @@ public:
         colors[ImGuiCol_NavHighlight]           = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
         colors[ImGuiCol_NavWindowingHighlight]  = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
         colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
-        colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
+        colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.00f, 0.00f, 0.00f, 0.25f);
     }
 
     void doSetup() override
@@ -852,13 +852,45 @@ public:
         if(ImGui::IsItemClicked()) {
             ImGui::OpenPopup("main-more-menu");
         }
+        bool openSettings = false;
         if(ImGui::BeginPopup("main-more-menu")) {
             ImGui::MenuItem("More info reLiveG...");
-            ImGui::MenuItem("Settings...");
+            if(ImGui::MenuItem("Settings...")) {
+                openSettings = true;
+            }
+
             ImGui::Separator();
             if(ImGui::MenuItem("Quit")) {
                 quit();
             }
+            ImGui::EndPopup();
+        }
+
+        static std::vector<Player::Device> outputDevices;
+        if(openSettings) {
+            ImGui::OpenPopup("reLiveG Settings");
+            outputDevices = _player.getOutputDevices();
+        }
+        ImGui::SetNextWindowPos(ImVec2(_width*0.5f, _height*0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(600, 350));
+        if(ImGui::BeginPopupModal("reLiveG Settings")) {
+            static auto currentDeviceName = outputDevices.empty() ? "" : outputDevices.front().name;
+            ImGui::Checkbox("Dark mode", &_darkMode);
+            if(ImGui::BeginCombo("Output device", _outputDevice.name.c_str())) {
+                for (const auto& device : outputDevices) {
+                    ImGui::PushID(device.name.c_str());
+                    if(ImGui::Selectable(device.name.c_str(), _outputDevice.name == device.name)) {
+                        _outputDevice = device;
+                    }
+                    ImGui::PopID();
+                }
+                ImGui::EndCombo();
+            }
+
+            if (ImGui::Button("OK", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
             ImGui::EndPopup();
         }
 
@@ -944,8 +976,8 @@ public:
             }
         }
         else {
-            ImGui::Text("");
-            ImGui::Text("");
+            ImGui::Text(" ");
+            ImGui::Text(" ");
         }
         //ImGui::SetCursorPos(ImVec2(4, _height - PLAY_BAR_HEIGHT - 4));
         if(_progress) {
@@ -1079,6 +1111,8 @@ private:
     bool _forceScroll = false;
     int _progress = 0;
     std::string _searchText;
+    bool _darkMode = true;
+    Player::Device _outputDevice;
 };
 
 }
@@ -1105,6 +1139,7 @@ int main(int argc, char* argv[])
           exit(0);
         });
         parser.onOpt({"-l", "--list-devices"}, "Dump a list of found and supported output devices and exit.", [&](const std::string&){
+#ifdef RELIVE_RTAUDIO_BACKEND
           RtAudio audio;
           audio.showWarnings(false);
           unsigned int devices = audio.getDeviceCount();
@@ -1124,6 +1159,7 @@ int main(int argc, char* argv[])
                   std::cout << rates << "]" << std::endl;
               }
           }
+#endif
           exit(0);
         });
         parser.onOpt({"-s?", "--default-station?"}, "[<name>]\tSet the default station to switch to on startup, only significant part of the name is needed. Without a parameter, this resets to starting on station screen.", [&](std::string str){

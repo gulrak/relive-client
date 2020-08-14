@@ -22,9 +22,11 @@ public:
     void run();
 
     void setWindowSize(unsigned width, unsigned height);
+    void setWindowTitle(const std::string& title);
     void quit();
     void onResize(unsigned width, unsigned height);
     void onRefresh();
+    void onFocus(bool focus);
     void setClearColor(ImU32 col) { _clearColor = col; }
     ImU32 clearColor() const { return _clearColor; }
 
@@ -50,6 +52,7 @@ protected:
     virtual void handleInput(ImGuiIO& io) {}
     virtual void renderFrame() = 0;
     virtual void handleResize(float width, float height) {}
+    virtual void handleFocus(bool focus) {}
 private:
     void setup();
     void teardown();

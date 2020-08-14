@@ -49,7 +49,7 @@ bool Knob(const char* label, T* value_p, T minv, T maxv, const char* value_text,
     {
         touched = true;
         ImVec2 mp = ImGui::GetIO().MousePos;
-        alpha = std::atan2f(mp.x - center.x, center.y - mp.y) + M_PI;
+        alpha = std::atan2(mp.x - center.x, center.y - mp.y) + M_PI;
         alpha = ImMax(gamma, std::min<float>(2.0f*M_PI-gamma,alpha));
         float value = 0.5f*(alpha-gamma)/(M_PI-gamma);
         value_p[0] = value*(maxv - minv) + minv;
