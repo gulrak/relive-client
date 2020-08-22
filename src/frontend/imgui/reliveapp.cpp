@@ -14,11 +14,13 @@
 #include <backend/system.hpp>
 #include <version/version.hpp>
 #include <ghc/options.hpp>
-#include <RtAudio.h>
+#include <rtaudio/RtAudio.h>
 #include <GLFW/glfw3.h>
 #include <imguix/application.h>
 #include <imguix/imguix.h>
 #include <resources/feather_icons.h>
+
+#include "stylemanager.h"
 
 #include <iostream>
 #include <set>
@@ -44,7 +46,7 @@ class ReLiveApp : public ImGui::Application
 
 public:
     ReLiveApp()
-    : ImGui::Application("reLiveG " RELIVE_VERSION_STRING_LONG " - \u00a9 2020 by Gulrak", "reLiveG")
+    : ImGui::Application(RELIVE_APP_NAME " " RELIVE_VERSION_STRING_LONG " - \u00a9 2020 by Gulrak", "reLiveG")
     , _rdb([&](int percent){ progress(percent); })
     , _lastFetch(0)
     , _activeStation(0)
@@ -69,62 +71,31 @@ public:
         }
     }
 
-    void setThemeColors()
+    void fetchStreams(const Station& station)
     {
-        ImVec4* colors = ImGui::GetStyle().Colors;
-        colors[ImGuiCol_Text]                   = ImVec4(0.80f, 0.80f, 0.80f, 1.00f);
-        colors[ImGuiCol_TextDisabled]           = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
-        colors[ImGuiCol_WindowBg]               = ImVec4(0.16f, 0.17f, 0.18f, 1.00f);
-        colors[ImGuiCol_ChildBg]                = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-        colors[ImGuiCol_PopupBg]                = ImVec4(0.25f, 0.25f, 0.25f, 1.00f);
-        colors[ImGuiCol_Border]                 = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
-        colors[ImGuiCol_BorderShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-        colors[ImGuiCol_FrameBg]                = ImVec4(0.39f, 0.41f, 0.42f, 1.00f);
-        colors[ImGuiCol_FrameBgHovered]         = ImVec4(0.26f, 0.59f, 0.98f, 0.40f);
-        colors[ImGuiCol_FrameBgActive]          = ImVec4(0.26f, 0.59f, 0.98f, 0.67f);
-        colors[ImGuiCol_TitleBg]                = ImVec4(0.04f, 0.04f, 0.04f, 1.00f);
-        colors[ImGuiCol_TitleBgActive]          = ImVec4(0.16f, 0.29f, 0.48f, 1.00f);
-        colors[ImGuiCol_TitleBgCollapsed]       = ImVec4(0.00f, 0.00f, 0.00f, 0.51f);
-        colors[ImGuiCol_MenuBarBg]              = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
-        colors[ImGuiCol_ScrollbarBg]            = ImVec4(0.16f, 0.17f, 0.18f, 1.00f);
-        colors[ImGuiCol_ScrollbarGrab]          = ImVec4(0.31f, 0.31f, 0.31f, 1.00f);
-        colors[ImGuiCol_ScrollbarGrabHovered]   = ImVec4(0.41f, 0.41f, 0.41f, 1.00f);
-        colors[ImGuiCol_ScrollbarGrabActive]    = ImVec4(0.51f, 0.51f, 0.51f, 1.00f);
-        colors[ImGuiCol_CheckMark]              = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-        colors[ImGuiCol_SliderGrab]             = ImVec4(0.24f, 0.52f, 0.88f, 1.00f);
-        colors[ImGuiCol_SliderGrabActive]       = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
-        colors[ImGuiCol_Button]                 = ImVec4(0.08f, 0.37f, 0.82f, 1.00f);
-        colors[ImGuiCol_ButtonHovered]          = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
-        colors[ImGuiCol_ButtonActive]           = ImVec4(0.06f, 0.53f, 0.98f, 1.00f);
-        colors[ImGuiCol_Header]                 = ImVec4(0.26f, 0.59f, 0.98f, 0.31f);
-        colors[ImGuiCol_HeaderHovered]          = ImVec4(0.30f, 0.30f, 0.30f, 0.80f);
-        colors[ImGuiCol_HeaderActive]           = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
-        colors[ImGuiCol_Separator]              = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
-        colors[ImGuiCol_SeparatorHovered]       = ImVec4(0.10f, 0.40f, 0.75f, 0.78f);
-        colors[ImGuiCol_SeparatorActive]        = ImVec4(0.10f, 0.40f, 0.75f, 1.00f);
-        colors[ImGuiCol_ResizeGrip]             = ImVec4(0.26f, 0.59f, 0.98f, 0.25f);
-        colors[ImGuiCol_ResizeGripHovered]      = ImVec4(0.26f, 0.59f, 0.98f, 0.67f);
-        colors[ImGuiCol_ResizeGripActive]       = ImVec4(0.26f, 0.59f, 0.98f, 0.95f);
-        colors[ImGuiCol_Tab]                    = ImVec4(0.18f, 0.35f, 0.58f, 0.86f);
-        colors[ImGuiCol_TabHovered]             = ImVec4(0.26f, 0.59f, 0.98f, 0.80f);
-        colors[ImGuiCol_TabActive]              = ImVec4(0.20f, 0.41f, 0.68f, 1.00f);
-        colors[ImGuiCol_TabUnfocused]           = ImVec4(0.07f, 0.10f, 0.15f, 0.97f);
-        colors[ImGuiCol_TabUnfocusedActive]     = ImVec4(0.14f, 0.26f, 0.42f, 1.00f);
-        colors[ImGuiCol_PlotLines]              = ImVec4(0.61f, 0.61f, 0.61f, 1.00f);
-        colors[ImGuiCol_PlotLinesHovered]       = ImVec4(1.00f, 0.43f, 0.35f, 1.00f);
-        colors[ImGuiCol_PlotHistogram]          = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
-        colors[ImGuiCol_PlotHistogramHovered]   = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
-        colors[ImGuiCol_TableHeaderBg]          = ImVec4(0.19f, 0.19f, 0.20f, 1.00f);
-        colors[ImGuiCol_TableBorderStrong]      = ImVec4(0.31f, 0.31f, 0.35f, 1.00f);
-        colors[ImGuiCol_TableBorderLight]       = ImVec4(0.23f, 0.23f, 0.25f, 1.00f);
-        colors[ImGuiCol_TableRowBg]             = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-        colors[ImGuiCol_TableRowBgAlt]          = ImVec4(1.00f, 1.00f, 1.00f, 0.07f);
-        colors[ImGuiCol_TextSelectedBg]         = ImVec4(0.26f, 0.59f, 0.98f, 0.35f);
-        colors[ImGuiCol_DragDropTarget]         = ImVec4(1.00f, 1.00f, 0.00f, 0.90f);
-        colors[ImGuiCol_NavHighlight]           = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
-        colors[ImGuiCol_NavWindowingHighlight]  = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
-        colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
-        colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.00f, 0.00f, 0.00f, 0.25f);
+        if(!station._streams.empty()) {
+            _streams = station._streams;
+            _rdb.deepFetch(_streams.front(), true);
+            auto parent = _streams.front()._station;
+            for(auto& stream : _streams) {
+                stream._station = parent;
+            }
+        }
+    }
+
+    void fetchTracks(Stream& stream)
+    {
+        _activeStream = stream._id;
+        _rdb.deepFetch(stream);
+        _tracks = stream._tracks;
+        auto parent = std::make_shared<Stream>(stream);
+        for(auto& track : _tracks) {
+            track._stream = parent;
+        }
+        /*if(!_tracks.empty()) {
+            _rdb.deepFetch(_tracks.front(), true);
+        }*/
+        _activeTrack = 0;
     }
 
     void doSetup() override
@@ -132,7 +103,7 @@ public:
         auto& style = ImGui::GetStyle();
         auto& io = ImGui::GetIO();
         style.WindowPadding = ImVec2(2, 2);
-        setThemeColors();
+        _style.setTheme(_darkMode ? StyleManager::DarkTheme : StyleManager::LightTheme);
         // ImGuiIO& io = ImGui::GetIO();
         ImFontGlyphRangesBuilder builder;
         builder.AddRanges(io.Fonts->GetGlyphRangesDefault());
@@ -514,11 +485,11 @@ public:
 
     void renderPlayBar(ImVec2 size)
     {
-        const ImU32 col1 = IM_COL32(100,100,100,255);
-        const ImU32 col2 = IM_COL32(130,130,130,255);
-        const ImU32 colBorder = IM_COL32(200,200,200,255);
-        const ImU32 colEmpty = IM_COL32(60,60,60,255);
-        const ImU32 colCursor = IM_COL32(220,220,220,255);
+        const ImU32 col1 = _style.getColor(reLiveCol_PlaybarStripe0);
+        const ImU32 col2 = _style.getColor(reLiveCol_PlaybarStripe1);
+        const ImU32 colBorder = _style.getColor(reLiveCol_PlaybarBorder);
+        const ImU32 colEmpty = _style.getColor(reLiveCol_PlaybarEmpty);
+        const ImU32 colCursor = _style.getColor(reLiveCol_PlaybarCursor);
         ImDrawList* drawList = ImGui::GetWindowDrawList();
         auto pos = ImGui::GetCursorPos();
         auto stream = _player.currentStream();
@@ -598,6 +569,7 @@ public:
 
     void renderStations(ImVec2 pageSize)
     {
+        setWindowTitle(RELIVE_APP_NAME " " RELIVE_VERSION_STRING_LONG " - \u00a9 2020 by Gulrak");
         ImGui::BeginTable("StationsTable", 3,  ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollFreezeTopRow, pageSize);
         ImGui::TableSetupColumn("Station Name##station", ImGuiTableColumnFlags_WidthStretch,0.5f);
         ImGui::TableSetupColumn("Streams##station", ImGuiTableColumnFlags_WidthFixed, 80);
@@ -616,13 +588,16 @@ public:
             ImGui::TableNextRow();
             bool isActive = false;
             if(station._id == _activeStation) {
-                ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255,255,255,255));
+                _style.pushColor(ImGuiCol_Text, reLiveCol_TableActiveLine);
                 isActive = true;
             }
             ImGui::TableSetColumnIndex(0);
             if(ImGui::Selectable(station._name.c_str(), station._id == _activeStation, ImGuiSelectableFlags_SpanAllColumns)) {
                 _activeStation = station._id;
                 _streams = station._streams;
+                if(!_streams.empty()) {
+                    _rdb.deepFetch(_streams.front(), true);
+                }
                 //_tracksModel.select(0);
                 _currentPage = CurrentPage::pSTREAMS;
             }
@@ -639,6 +614,8 @@ public:
 
     void renderStreams(ImVec2 pageSize)
     {
+        std::string station = _activeStation && !_streams.empty() ? _streams.front()._station->_name : "reLive - <no station selected>";
+        setWindowTitle(station);
         ImGui::BeginTable("StreamsTable", 6,  ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollFreezeTopRow, pageSize);
         ImGui::TableSetupColumn(" ##Streams", ImGuiTableColumnFlags_WidthFixed,20);
         ImGui::TableSetupColumn("    Date##Streams", ImGuiTableColumnFlags_WidthFixed, 90);
@@ -661,15 +638,18 @@ public:
             ImGui::TableNextRow();
             bool isActive = false;
             if(stream._id == _activeStream) {
-                ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255,255,255,255));
-                isActive = true;
+                _style.pushColor(ImGuiCol_Text, reLiveCol_TableActiveLine);
+            }
+            else if(!(stream._flags & Stream::ePlayed)) {
+                _style.pushColor(ImGuiCol_Text, reLiveCol_TableUnplayed);
+            }
+            else {
+                _style.pushColor(ImGuiCol_Text, reLiveCol_TablePlayed);
             }
             ImGui::TableSetColumnIndex(0);
             if(ImGui::Selectable((std::string(stream._id == _activeStream ? playAnim[std::time(NULL)%3] : playAnim[3]) + std::to_string(stream._id)).c_str(), stream._id == _activeStream, ImGuiSelectableFlags_SpanAllColumns)) {
-                _activeStream = stream._id;
-                _rdb.deepFetch(stream);
-                _tracks = stream._tracks;
-                _activeTrack = 0;
+                fetchTracks(stream);
+                _rdb.setPlayed(stream);
                 _player.setSource(stream);
                 _player.play();
                 _chat = _rdb.fetchChat(stream);
@@ -687,9 +667,7 @@ public:
             ImGui::Text("%s", formattedDuration(stream._duration).c_str());
             ImGui::TableSetColumnIndex(5);
             ImGui::Text("   %s", stream._chatChecksum ? ICON_FTH_CHECK : "-");
-            if(isActive) {
-                ImGui::PopStyleColor();
-            }
+            ImGui::PopStyleColor();
         }
         ImGui::EndTable();
     }
@@ -704,6 +682,8 @@ public:
             ICON_FTH_MESSAGE_SQUARE
         };
 
+        std::string stream = !_tracks.empty() ? _tracks.front()._stream->_station->_name + ": " + _tracks.front()._stream->_name + " [" + formattedTime(_tracks.front()._stream->_timestamp) + "]" : "reLive - <no stream selected>";
+        setWindowTitle(stream);
         ImGui::BeginTable("TracksTable", 6,  ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollFreezeTopRow, pageSize);
         ImGui::TableSetupColumn(" ##tracks", ImGuiTableColumnFlags_WidthFixed,20);
         ImGui::TableSetupColumn("  Time##tracks", ImGuiTableColumnFlags_WidthFixed, 80);
@@ -726,17 +706,13 @@ public:
             ImGui::TableNextRow();
             bool isActive = false;
             if(track._id == _activeTrack) {
-                ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255,255,255,255));
+                _style.pushColor(ImGuiCol_Text, reLiveCol_TableActiveLine);
                 isActive = true;
             }
             ImGui::TableSetColumnIndex(0);
             if(ImGui::Selectable((std::string(track._id == _activeTrack ? playAnim[std::time(NULL)%3] : playAnim[3]) + std::to_string(track._id)).c_str(), track._id == _activeTrack, ImGuiSelectableFlags_SpanAllColumns)) {
-                _rdb.deepFetch(track);
-                _rdb.deepFetch(*track._stream);
-
                 _player.setSource(track);
                 _player.play();
-
                 _currentPage = CurrentPage::pTRACKS;
             }
             ImGui::TableSetColumnIndex(1);
@@ -759,6 +735,8 @@ public:
 
     void renderChat(ImVec2 pageSize)
     {
+        std::string stream = !_tracks.empty() ? _tracks.front()._stream->_station->_name + ": " + _tracks.front()._stream->_name + " [" + formattedTime(_tracks.front()._stream->_timestamp) + "]" : "reLive - <no stream selected>";
+        setWindowTitle(stream);
         ImGui::SetNextWindowContentSize(ImVec2(pageSize.x - 20, _chatLogHeight + ImGui::GetTextLineHeight()));
         ImGui::BeginChild("##ChatLog", ImVec2(pageSize.x - 4, pageSize.y));
         if(_forceScroll) {
@@ -770,7 +748,7 @@ public:
         auto scrollPos = ImGui::GetScrollY();
         float yoffset = 0;
         for(int i = 0; i <= _chatPosition; ++i) {
-            auto msgcol = ImGui::ColorConvertFloat4ToU32(ImGui::GetStyle().Colors[ImGuiCol_Text]);
+            auto msgcol = _style.getColor(ImGuiCol_Text);
             if(yoffset >= scrollPos - 16 && yoffset < scrollPos + pageSize.y) {
                 const auto& msg = _chat[i];
                 drawList->AddText(ImVec2(pos.x, pos.y + yoffset), msgcol, formattedDuration(msg._time).c_str());
@@ -875,7 +853,9 @@ public:
         ImGui::SetNextWindowSize(ImVec2(600, 350));
         if(ImGui::BeginPopupModal("reLiveG Settings")) {
             static auto currentDeviceName = outputDevices.empty() ? "" : outputDevices.front().name;
-            ImGui::Checkbox("Dark mode", &_darkMode);
+            if(ImGui::Checkbox("Dark mode", &_darkMode)) {
+                _style.setTheme(_darkMode ? StyleManager::DarkTheme : StyleManager::LightTheme);
+            }
             if(ImGui::BeginCombo("Output device", _outputDevice.name.c_str())) {
                 for (const auto& device : outputDevices) {
                     ImGui::PushID(device.name.c_str());
@@ -886,11 +866,12 @@ public:
                 }
                 ImGui::EndCombo();
             }
-
+            ImGui::BeginChild("item view", ImVec2(0, -ImGui::GetTextLineHeightWithSpacing()));
             if (ImGui::Button("OK", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
             ImGui::SetItemDefaultFocus();
             ImGui::SameLine();
             if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
+            ImGui::EndChild();
             ImGui::EndPopup();
         }
 
@@ -910,10 +891,10 @@ public:
         for(const auto& label : menuLabels) {
             ImGui::SetCursorPosX(offset);
             if(idx == _currentPage) {
-                ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(100, 180, 250, 255));
+                _style.pushColor(ImGuiCol_Text, reLiveCol_MainMenuTextSelected);
             }
             else {
-                ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(100, 100, 100, 255));
+                _style.pushColor(ImGuiCol_Text, reLiveCol_MainMenuText);
             }
             ImGui::Text("%s", label.c_str());
             if(ImGui::IsItemClicked()) {
@@ -999,7 +980,7 @@ public:
 
         drawList->AddRectFilledMultiColor(ImVec2(pos.x,pos.y + _height - BOTTOM_PANEL_HEIGHT - PANEL_SHADOW), ImVec2(pos.x + _width, pos.y + _height - BOTTOM_PANEL_HEIGHT),
                                           IM_COL32(0,0,0,0), IM_COL32(0,0,0,0),
-                                          IM_COL32(0,0,0,255), IM_COL32(0,0,0,255));
+                                          IM_COL32(0,0,0,128), IM_COL32(0,0,0,128));
 
         ImGui::End();
         ImGui::PopStyleVar(2);
@@ -1024,11 +1005,11 @@ private:
         return hval;
     }
 
-    static ImU32 colorForString(const std::string& str)
+    ImU32 colorForString(const std::string& str)
     {
         auto hash = hashFNV1a(str.c_str());
         float r = 0, g = 0, b = 0;
-        ImGui::ColorConvertHSVtoRGB((hash & 0xffu) / 255.0f, 0.5f, (255 - ((hash >> 8u) & 31u)) / 255.0f, r, g, b);
+        ImGui::ColorConvertHSVtoRGB((hash & 0xffu) / 255.0f, 0.5f, ((_darkMode ? 255 : 128) - ((hash >> 8u) & 31u)) / 255.0f, r, g, b);
         return ImGui::ColorConvertFloat4ToU32(ImVec4(r, g, b, 255));
     }
 
@@ -1090,6 +1071,7 @@ private:
     int64_t _lastFetch = 0;
     int _lastPlayPos = 0;
     Player _player;
+    StyleManager _style;
     ImFont* _propFont = nullptr;
     ImFont* _headerFont = nullptr;
     ImFont* _monoFont = nullptr;

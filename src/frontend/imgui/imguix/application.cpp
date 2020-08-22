@@ -93,7 +93,10 @@ void Application::setWindowSize(unsigned width, unsigned height)
 
 void Application::setWindowTitle(const std::string& title)
 {
-    glfwSetWindowTitle(_impl->window, title.c_str());
+    if(title != _impl->title) {
+        _impl->title = title;
+        glfwSetWindowTitle(_impl->window, title.c_str());
+    }
 }
 
 void Application::onResize(unsigned width, unsigned height)
