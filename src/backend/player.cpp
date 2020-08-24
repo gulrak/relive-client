@@ -246,7 +246,7 @@ void Player::startAudio()
 
 void Player::stopAudio()
 {
-    std::cout << "stop audio start" << std::endl;
+    //std::cout << "stop audio start" << std::endl;
 #ifdef RELIVE_RTAUDIO_BACKEND
     try {
         _impl->_dac.stopStream();
@@ -261,7 +261,7 @@ void Player::stopAudio()
         //Pa_AbortStream(_impl->_paStream);
     }
 #endif
-    std::cout << "stop audio end" << std::endl;
+    //std::cout << "stop audio end" << std::endl;
 }
 
 void Player::play()
@@ -284,12 +284,12 @@ void Player::play()
 
 void Player::pause()
 {
-    std::cout << "begin pause" << std::endl;
+    //std::cout << "begin pause" << std::endl;
     std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
     _impl->_isPlaying = false;
     _impl->_state = ePAUSED;
     stopAudio();
-    std::cout << "end pause" << std::endl;
+    //std::cout << "end pause" << std::endl;
 }
 
 PlayerState Player::state() const

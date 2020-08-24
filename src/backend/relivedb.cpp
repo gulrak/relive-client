@@ -555,6 +555,9 @@ void ReLiveDB::doRefreshStationInfo(const ghc::net::uri& station, int64_t statio
                             streamId = oldStream.front()._id;
                             if(oldStream.front().needsUpdate(s)) {
                                 s._id = streamId;
+                                if(oldStream.front()._flags & Stream::ePlayed) {
+                                    s._flags |= Stream::ePlayed;
+                                }
                                 storage().update(s);
                                 if(oldStream.front()._streamInfoChecksum != s._streamInfoChecksum) {
                                     storage().remove_all<Track>(where(c(&Track::_streamId) == streamId));

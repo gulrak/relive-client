@@ -216,11 +216,11 @@ public:
                 setColor(ImGuiCol_ModalWindowDimBg,  ImVec4(0.81f, 0.81f, 0.81f, 0.50f));
                 setColor(reLiveCol_MainMenuText, IM_COL32(0, 0, 0, 255));
                 setColor(reLiveCol_MainMenuTextSelected, IM_COL32(0, 97, 164, 255));
-                setColor(reLiveCol_PlaybarStripe0, IM_COL32(100,100,100,255));
-                setColor(reLiveCol_PlaybarStripe1, IM_COL32(130,130,130,255));
+                setColor(reLiveCol_PlaybarStripe0, derivedColorV(ImVec4(0.73f, 0.77f, 0.82f, 1.00f), 0.7));
+                setColor(reLiveCol_PlaybarStripe1, derivedColorV(ImVec4(0.73f, 0.77f, 0.82f, 1.00f), 0.9));
                 setColor(reLiveCol_PlaybarBorder, IM_COL32(200,200,200,255));
                 setColor(reLiveCol_PlaybarEmpty, IM_COL32(60,60,60,255));
-                setColor(reLiveCol_PlaybarCursor, IM_COL32(220,220,220,255));
+                setColor(reLiveCol_PlaybarCursor, IM_COL32(32,32,32,255));
                 setColor(reLiveCol_TableActiveLine, IM_COL32(255,255,255,255));
                 setColor(reLiveCol_TableUnplayed, ImVec4(0.00f, 0.00f, 0.00f, 1.00f));
                 setColor(reLiveCol_TablePlayed, ImVec4(0.30f, 0.30f, 0.30f, 1.00f));
@@ -234,12 +234,12 @@ private:
         return t > max ? max : t;
     }
 
-    static ImU32 derivedColorV(ImVec4 col, float scaleV)
+    static ImU32 derivedColorV(ImVec4 col, float vv)
     {
         float h = 0, s = 0, v = 0;
         ImGui::ColorConvertRGBtoHSV(col.x, col.y, col.z, h, s, v);
         float r = 0, g = 0, b = 0;
-        ImGui::ColorConvertHSVtoRGB(h, s, clamp(v*scaleV), r, g, b);
+        ImGui::ColorConvertHSVtoRGB(h, s, vv, r, g, b);
         return ImGui::ColorConvertFloat4ToU32(ImVec4(r, g, b, col.w));
     }
     std::vector<ImU32> _colors;
