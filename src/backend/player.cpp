@@ -1,39 +1,8 @@
 //---------------------------------------------------------------------------------------
-//
-// relivedb - A C++ implementation of the reLive protocoll and an sqlite backend
-//
-//---------------------------------------------------------------------------------------
-//
+// SPDX-License-Identifier: BSD-3-Clause
+// relive-client - A C++ implementation of the reLive protocol and an sqlite backend
 // Copyright (c) 2019, Steffen Schümann <s.schuemann@pobox.com>
-// All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without modification,
-// are permitted provided that the following conditions are met:
-//
-// 1. Redistributions of source code must retain the above copyright notice, this
-//    list of conditions and the following disclaimer.
-//
-// 2. Redistributions in binary form must reproduce the above copyright notice,
-//    this list of conditions and the following disclaimer in the documentation
-//    and/or other materials provided with the distribution.
-//
-// 3. Neither the name of the copyright holder nor the names of its contributors
-//    may be used to endorse or promote products derived from this software without
-//    specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 //---------------------------------------------------------------------------------------
-
 #include "player.hpp"
 #include "logging.hpp"
 #include "ringbuffer.hpp"
@@ -190,6 +159,7 @@ void Player::configureAudio()
     unsigned int bufferFrames = _impl->_frameRate;
     try {
         _impl->_dac.openStream(&parameters, NULL, RTAUDIO_SINT16, _impl->_frameRate, &bufferFrames, &playStreamCallback, this);
+        std::cout << "Buffer choosen: " << bufferFrames << ", latency: " << _impl->_dac.getStreamLatency() <<  std::endl;
     }
     catch ( RtAudioError& e ) {
         ERROR_LOG(0, "Error while initializing audio: " << e.getMessage());
@@ -264,6 +234,26 @@ void Player::stopAudio()
     //std::cout << "stop audio end" << std::endl;
 }
 
+void Player::abortAudio()
+{
+    //std::cout << "stop audio start" << std::endl;
+#ifdef RELIVE_RTAUDIO_BACKEND
+    try {
+        _impl->_dac.abortStream();
+    }
+    catch (RtAudioError& e) {
+        ERROR_LOG(0, "Error while stopping audio: " << e.getMessage());
+    }
+#elif defined(RELIVE_PORTAUDIO_BACKEND)
+    if(_impl->_paStream)
+    {
+        //Pa_StopStream(_impl->_paStream);
+        Pa_AbortStream(_impl->_paStream);
+    }
+#endif
+    //std::cout << "stop audio end" << std::endl;
+}
+
 void Player::play()
 {
     if(hasSource()) {
@@ -313,6 +303,7 @@ int Player::playTime() const
 void Player::seekTo(int seconds)
 {
     std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    abortAudio();
     if(_impl->_streamInfo) {
         auto tt = seconds > 0 ? (double)seconds - 0.05 : (double)seconds;
         _impl->_offset = (int64_t)(_impl->_streamInfo->_size*(tt / _impl->_streamInfo->_duration));
@@ -667,7 +658,7 @@ void Player::streamSCast()
 
 #define BUFFER_PEEK_SIZE 4096u
 
-bool Player::decodeFrame()
+void Player::decodeFrame()
 {
     //std::clog << "decode..." << std::endl;
     if(_impl->_receiveBuffer.canPull(200) && _impl->_sampleBuffer.free() >= MINIMP3_MAX_SAMPLES_PER_FRAME) {
@@ -684,14 +675,14 @@ bool Player::decodeFrame()
         _impl->_decodePosition += _impl->_mp3info.frame_bytes;
         if(samples>0 && _impl->_mp3info.frame_bytes > 0) {
             _impl->_sampleBuffer.push(pcm, samples*_impl->_mp3info.channels);
+            DEBUG_LOG(4, "decoded " << _impl->_mp3info.frame_bytes << " bytes into " << samples << " samples (" << _impl->_mp3info.hz << "Hz)");
             //std::clog << "Decoded " << _impl->_mp3info.frame_bytes << " bytes into " << samples << " samples (" << _impl->_mp3info.hz << "Hz)" << std::endl;
-            return true;
         }
         else {
             //std::clog << "No samples but " << _impl->_mp3info.frame_bytes << " frame bytes" << std::endl;
         }
     }
-    DEBUG_LOG(4, "decoded " << _impl->_decodePosition << "/" << _impl->_size << " bytes");
+    //DEBUG_LOG(4, "decoded " << _impl->_decodePosition << "/" << _impl->_size << " bytes");
     if(_impl->_sampleBuffer.free() > 0 && _impl->_size && _impl->_decodePosition+200 >= _impl->_size)
     {
         /*SampleType t[64];
@@ -700,29 +691,39 @@ bool Player::decodeFrame()
             _impl->_sampleBuffer.push(t, 64);*/
         _impl->_state = eENDING;
     }
-
-    return false;
 }
 
 void Player::playMusic(unsigned char* buffer, int frames)
 {
-    //std::clog << "play..." << std::endl;
-    SampleType* dst = (SampleType*)buffer;
+    auto requestedTime = frames*1000/_impl->_frameRate;
+    std::clog << "play " << frames << " (~" << requestedTime << "ms), sample buffer contains " << (_impl->_sampleBuffer.filled() / _impl->_numChannels) << std::endl;
+    auto start = std::chrono::steady_clock::now();
+    auto* dst = (SampleType*)buffer;
     bool didDecode = false;
-    if(_impl->_state != eENDOFSTREAM && _impl->_sampleBuffer.filled() < (unsigned int)frames*_impl->_numChannels && _impl->_receiveBuffer.filled())
-    {
-        unsigned int lastFill;
-        do {
-            lastFill = _impl->_sampleBuffer.filled();
-            didDecode = decodeFrame();
+    if(_impl->_state != eENDOFSTREAM) {
+        if(!_impl->_receiveBuffer.filled()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(requestedTime/2));
+            std::clog << "Buffer after sleep: " << _impl->_receiveBuffer.filled() << " bytes" << std::endl;
+        } else {
+            std::clog << "Buffer filled with: " << _impl->_receiveBuffer.filled() << " bytes" << std::endl;
         }
-        while(lastFill != _impl->_sampleBuffer.filled());
+        if(_impl->_sampleBuffer.filled() < (unsigned int)frames*_impl->_numChannels && _impl->_receiveBuffer.filled())
+        {
+            //unsigned int lastFill;
+            do {
+                //lastFill = _impl->_sampleBuffer.filled();
+                decodeFrame();
+            }
+            while(!_impl->_sampleBuffer.filled() && std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count()<requestedTime*2/3);
+        }
     }
 
+    int zeros = 0;
     if( _impl->_state == ePAUSED || _impl->_state == eENDOFSTREAM )
     {
         for( ; frames; --frames )
         {
+            ++zeros;
             *dst++ = 0;
             if( _impl->_numChannels == 2 )
                 *dst++ = 0;
@@ -732,7 +733,7 @@ void Player::playMusic(unsigned char* buffer, int frames)
     {
         int len = _impl->_sampleBuffer.pull(dst, frames * _impl->_numChannels);
         _impl->_playPosition += len / _impl->_numChannels;
-        SampleType* ptr = (SampleType*)buffer;
+        auto* ptr = (SampleType*)buffer;
         for(int i = 0; i < len; ++i, ++ptr)
             *ptr = (SampleType)((((int)*ptr) * _impl->_volume) / 100);
         dst += len;
@@ -740,9 +741,13 @@ void Player::playMusic(unsigned char* buffer, int frames)
             DEBUG_LOG(3, "Stream play ended.");
             _impl->_state = eENDOFSTREAM;
         }
-        while( len++ < frames * _impl->_numChannels )
+        while( len++ < frames * _impl->_numChannels ) {
+            ++zeros;
             *dst++ = 0;
+        }
     }
+    auto dt = std::chrono::steady_clock::now() - start;
+    std::cout << "playMusic: " << std::chrono::duration_cast<std::chrono::milliseconds>(dt).count() << "ms, " << zeros << " frames silence" << std::endl;
 }
 
 std::vector<Player::Device> Player::getOutputDevices()

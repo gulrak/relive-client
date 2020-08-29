@@ -1,3 +1,8 @@
+//---------------------------------------------------------------------------------------
+// SPDX-License-Identifier: BSD-3-Clause
+// relive-client - A C++ implementation of the reLive protocol and an sqlite backend
+// Copyright (c) 2019, Steffen Schümann <s.schuemann@pobox.com>
+//---------------------------------------------------------------------------------------
 #define GHC_FILESYSTEM_IMPLEMENTATION
 #include <ghc/filesystem.hpp>
 

@@ -1,3 +1,8 @@
+//---------------------------------------------------------------------------------------
+// SPDX-License-Identifier: BSD-3-Clause
+// relive-client - A C++ implementation of the reLive protocol and an sqlite backend
+// Copyright (c) 2019, Steffen Schümann <s.schuemann@pobox.com>
+//---------------------------------------------------------------------------------------
 /*
  * TODO: Info view
  * TODO: Settings screen
@@ -1107,7 +1112,7 @@ int main(int argc, char* argv[])
     try {
         setAppName(RELIVE_APP_NAME);
         LogManager::setOutputFile(relive::dataPath() + "/" + appName() + ".log");
-        LogManager::instance()->defaultLevel(3);
+        LogManager::instance()->defaultLevel(4);
         if(isInstanceRunning()) {
             throw std::runtime_error("Instance already running.");
         }
@@ -1176,6 +1181,7 @@ int main(int argc, char* argv[])
     catch(std::exception& ex) {
         std::cerr << "Error: " << ex.what() << std::endl;
         exit(1);
-    }        return 0;
+    }
+    return 0;
 }
 
