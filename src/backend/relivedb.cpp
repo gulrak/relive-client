@@ -33,7 +33,6 @@ namespace fs = ghc::filesystem;
 using namespace relive;
 
 
-
 static int64_t getTime()
 {
     return std::chrono::time_point_cast<std::chrono::seconds>(std::chrono::system_clock::now()).time_since_epoch().count();
@@ -48,6 +47,7 @@ inline auto initStorage(const std::string& dbfile)
                                    ),
                         make_table("stations",
                                    make_column("id", &Station::_id, autoincrement(), primary_key()),
+                                   make_column("relive_id", &Station::_reliveId),
                                    make_column("protocol", &Station::_protocol),
                                    make_column("name", &Station::_name),
                                    make_column("last_update", &Station::_lastUpdate),
@@ -114,6 +114,7 @@ std::string Keys::version = "version";
 std::string Keys::relive_root_server = "relive_root_server";
 std::string Keys::last_relive_sync = "last_relive_sync";
 std::string Keys::default_station = "default_station";
+std::string Keys::play_position = "play_position";
 
 ReLiveDB::ReLiveDB(std::function<void(int)> progressHandler, const ghc::net::uri& master)
 : _worker(8)
@@ -409,7 +410,7 @@ void ReLiveDB::doRefreshStations()
                 std::string apiServer;
                 {
                     std::lock_guard<Mutex> lock{_mutex};
-                    Station st{-1, 11, station.at("name").get<std::string>(), now, 0, ""};
+                    Station st{-1, station.at("id").get<int64_t>(), 11, station.at("name").get<std::string>(), now, 0, ""};
                     auto oldStations = storage().get_all<Station>(where(c(&Station::_name) == st._name));
                     if(oldStations.empty()) {
                         storage().begin_transaction();

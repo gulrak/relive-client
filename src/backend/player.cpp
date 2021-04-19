@@ -159,7 +159,7 @@ void Player::configureAudio()
     unsigned int bufferFrames = _impl->_frameRate;
     try {
         _impl->_dac.openStream(&parameters, NULL, RTAUDIO_SINT16, _impl->_frameRate, &bufferFrames, &playStreamCallback, this);
-        std::cout << "Buffer choosen: " << bufferFrames << ", latency: " << _impl->_dac.getStreamLatency() <<  std::endl;
+        //--std::cout << "Buffer choosen: " << bufferFrames << ", latency: " << _impl->_dac.getStreamLatency() <<  std::endl;
     }
     catch ( RtAudioError& e ) {
         ERROR_LOG(0, "Error while initializing audio: " << e.getMessage());
@@ -311,6 +311,7 @@ void Player::seekTo(int seconds)
         _impl->_playPosition = ((double)_impl->_streamInfo->_duration * _impl->_offset / _impl->_streamInfo->_size + 0.1) * _impl->_frameRate;
         _impl->_receiveBuffer.clear();
         _impl->_sampleBuffer.clear();
+        play();
     }
 }
 
@@ -676,7 +677,7 @@ void Player::decodeFrame()
         if(samples>0 && _impl->_mp3info.frame_bytes > 0) {
             _impl->_sampleBuffer.push(pcm, samples*_impl->_mp3info.channels);
             DEBUG_LOG(4, "decoded " << _impl->_mp3info.frame_bytes << " bytes into " << samples << " samples (" << _impl->_mp3info.hz << "Hz)");
-            //std::clog << "Decoded " << _impl->_mp3info.frame_bytes << " bytes into " << samples << " samples (" << _impl->_mp3info.hz << "Hz)" << std::endl;
+            //--std::clog << "Decoded " << _impl->_mp3info.frame_bytes << " bytes into " << samples << " samples (" << _impl->_mp3info.hz << "Hz)" << std::endl;
         }
         else {
             //std::clog << "No samples but " << _impl->_mp3info.frame_bytes << " frame bytes" << std::endl;
@@ -696,16 +697,16 @@ void Player::decodeFrame()
 void Player::playMusic(unsigned char* buffer, int frames)
 {
     auto requestedTime = frames*1000/_impl->_frameRate;
-    std::clog << "play " << frames << " (~" << requestedTime << "ms), sample buffer contains " << (_impl->_sampleBuffer.filled() / _impl->_numChannels) << std::endl;
+    //--std::clog << "play " << frames << " (~" << requestedTime << "ms), sample buffer contains " << (_impl->_sampleBuffer.filled() / _impl->_numChannels) << std::endl;
     auto start = std::chrono::steady_clock::now();
     auto* dst = (SampleType*)buffer;
     bool didDecode = false;
     if(_impl->_state != eENDOFSTREAM) {
         if(!_impl->_receiveBuffer.filled()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(requestedTime/2));
-            std::clog << "Buffer after sleep: " << _impl->_receiveBuffer.filled() << " bytes" << std::endl;
+            //--std::clog << "Buffer after sleep: " << _impl->_receiveBuffer.filled() << " bytes" << std::endl;
         } else {
-            std::clog << "Buffer filled with: " << _impl->_receiveBuffer.filled() << " bytes" << std::endl;
+            //--std::clog << "Buffer filled with: " << _impl->_receiveBuffer.filled() << " bytes" << std::endl;
         }
         if(_impl->_sampleBuffer.filled() < (unsigned int)frames*_impl->_numChannels && _impl->_receiveBuffer.filled())
         {
@@ -714,7 +715,7 @@ void Player::playMusic(unsigned char* buffer, int frames)
                 //lastFill = _impl->_sampleBuffer.filled();
                 decodeFrame();
             }
-            while(!_impl->_sampleBuffer.filled() && std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count()<requestedTime*2/3);
+            while(_impl->_sampleBuffer.filled() < (unsigned int)frames*_impl->_numChannels && _impl->_receiveBuffer.filled() && std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count()<requestedTime*2/3);
         }
     }
 
@@ -734,20 +735,23 @@ void Player::playMusic(unsigned char* buffer, int frames)
         int len = _impl->_sampleBuffer.pull(dst, frames * _impl->_numChannels);
         _impl->_playPosition += len / _impl->_numChannels;
         auto* ptr = (SampleType*)buffer;
-        for(int i = 0; i < len; ++i, ++ptr)
+        for(int i = 0; i < len; ++i, ++ptr) {
             *ptr = (SampleType)((((int)*ptr) * _impl->_volume) / 100);
-        dst += len;
-        if(len < frames * _impl->_numChannels && _impl->_state == eENDING) {
-            DEBUG_LOG(3, "Stream play ended.");
-            _impl->_state = eENDOFSTREAM;
         }
-        while( len++ < frames * _impl->_numChannels ) {
-            ++zeros;
-            *dst++ = 0;
+        dst += len;
+        if(len < frames * _impl->_numChannels) {
+            if(_impl->_state == eENDING) {
+                DEBUG_LOG(3, "Stream play ended.");
+                _impl->_state = eENDOFSTREAM;
+            }
+            while( len++ < frames * _impl->_numChannels ) {
+                ++zeros;
+                *dst++ = 0;
+            }
         }
     }
-    auto dt = std::chrono::steady_clock::now() - start;
-    std::cout << "playMusic: " << std::chrono::duration_cast<std::chrono::milliseconds>(dt).count() << "ms, " << zeros << " frames silence" << std::endl;
+    //--auto dt = std::chrono::steady_clock::now() - start;
+    //--std::cout << "playMusic: " << std::chrono::duration_cast<std::chrono::microseconds>(dt).count() << "us, " << zeros << " frames silence" << std::endl;
 }
 
 std::vector<Player::Device> Player::getOutputDevices()

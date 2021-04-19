@@ -63,10 +63,7 @@ public:
         //LogManager::instance()->defaultLevel(1);
     }
 
-    ~ReLiveApp()
-    {
-
-    }
+    ~ReLiveApp() override = default;
 
     void fetchStations()
     {
@@ -435,6 +432,13 @@ public:
         _headerFont = addFontFromResourceTTF("DejaVuSans.ttf", HEADER_FONT_SIZE);
         _monoFont = io.Fonts->AddFontDefault();
         fetchStations();
+        auto defaultStation = _rdb.getConfigValue(Keys::default_station, std::string());
+        for(const auto& station : _stations) {
+            if(station._name == defaultStation) {
+                DEBUG_LOG(2, "found default station '" << station._name << "'");
+                selectStation(station);
+            }
+        }
     }
 
     void doTeardown() override {}
@@ -454,6 +458,20 @@ public:
         return false;
     }
 
+    void savePosition()
+    {
+        if(_player.state() != PlayerState::eENDOFSTREAM && _activeTrack) {
+            _rdb.setConfigValue(Keys::play_position, _activeTrackInfo.reLiveURL(_player.playTime()));
+        }
+        else if(_activeStation) {
+            _rdb.setConfigValue(Keys::play_position, _stations[_activeStation].reLiveURL());
+        }
+        else {
+            _rdb.setConfigValue(Keys::play_position, "");
+        }
+        _lastSavepoint = currentTime();
+    }
+
     void handleInput(ImGuiIO& io) override
     {
         setClearColor(ImGui::ColorConvertFloat4ToU32(ImGui::GetStyle().Colors[ImGuiCol_WindowBg]));
@@ -462,6 +480,9 @@ public:
             _rdb.refreshStations([this](){ handleRedraw(); });
             fetchStations();
             _lastFetch = currentTime();
+        }
+        if(currentTime() - _lastSavepoint >= 60) {
+            savePosition();
         }
     }
 
@@ -526,9 +547,9 @@ public:
         if(ImGui::IsItemClicked()) {
             auto clickPos = ImGui::GetMousePos();
             auto relClick = clickPos - ImGui::GetItemRectMin();
-            auto pos = (double)stream->_duration / size.x * relClick.x;
-            if(pos >= 0 && pos < stream->_duration) {
-                _player.seekTo(pos);
+            auto playpos = (double)stream->_duration / size.x * relClick.x;
+            if(playpos >= 0 && playpos < stream->_duration) {
+                _player.seekTo(playpos);
             }
         }
     }
@@ -572,6 +593,17 @@ public:
         ImGui::EndGroup();
     }
 
+    void selectStation(const Station& station)
+    {
+        _activeStation = station._id;
+        _streams = station._streams;
+        if(!_streams.empty()) {
+            _rdb.deepFetch(_streams.front(), true);
+        }
+        //_tracksModel.select(0);
+        _currentPage = CurrentPage::pSTREAMS;
+    }
+
     void renderStations(ImVec2 pageSize)
     {
         setWindowTitle(RELIVE_APP_NAME " " RELIVE_VERSION_STRING_LONG " - \u00a9 2020 by Gulrak");
@@ -598,13 +630,7 @@ public:
             }
             ImGui::TableSetColumnIndex(0);
             if(ImGui::Selectable(station._name.c_str(), station._id == _activeStation, ImGuiSelectableFlags_SpanAllColumns)) {
-                _activeStation = station._id;
-                _streams = station._streams;
-                if(!_streams.empty()) {
-                    _rdb.deepFetch(_streams.front(), true);
-                }
-                //_tracksModel.select(0);
-                _currentPage = CurrentPage::pSTREAMS;
+                selectStation(station);
             }
             ImGui::TableSetColumnIndex(1);
             ImGui::Text("%lu", station._streams.size());
@@ -652,7 +678,7 @@ public:
                 _style.pushColor(ImGuiCol_Text, reLiveCol_TablePlayed);
             }
             ImGui::TableSetColumnIndex(0);
-            if(ImGui::Selectable((std::string(stream._id == _activeStream ? playAnim[std::time(NULL)%3] : playAnim[3]) + std::to_string(stream._id)).c_str(), stream._id == _activeStream, ImGuiSelectableFlags_SpanAllColumns)) {
+            if(ImGui::Selectable((std::string(stream._id == _activeStream ? playAnim[std::time(nullptr)%3] : playAnim[3]) + std::to_string(stream._id)).c_str(), stream._id == _activeStream, ImGuiSelectableFlags_SpanAllColumns)) {
                 fetchTracks(stream);
                 _rdb.setPlayed(stream);
                 _player.setSource(stream);
@@ -715,7 +741,7 @@ public:
                 isActive = true;
             }
             ImGui::TableSetColumnIndex(0);
-            if(ImGui::Selectable((std::string(track._id == _activeTrack ? playAnim[std::time(NULL)%3] : playAnim[3]) + std::to_string(track._id)).c_str(), track._id == _activeTrack, ImGuiSelectableFlags_SpanAllColumns)) {
+            if(ImGui::Selectable((std::string(track._id == _activeTrack ? playAnim[std::time(nullptr)%3] : playAnim[3]) + std::to_string(track._id)).c_str(), track._id == _activeTrack, ImGuiSelectableFlags_SpanAllColumns)) {
                 _player.setSource(track);
                 _player.play();
                 _currentPage = CurrentPage::pTRACKS;
@@ -1074,13 +1100,14 @@ private:
     std::mutex _mutex;
     ReLiveDB _rdb;
     int64_t _lastFetch = 0;
+    int64_t _lastSavepoint = 0;
     int _lastPlayPos = 0;
     Player _player;
     StyleManager _style;
     ImFont* _propFont = nullptr;
     ImFont* _headerFont = nullptr;
     ImFont* _monoFont = nullptr;
-    std::atomic_bool _needsRefresh;
+    std::atomic_bool _needsRefresh = true;
     CurrentPage _currentPage = pSTATIONS;
     std::vector<Station> _stations;
     int64_t _activeStation = 0;
@@ -1162,7 +1189,7 @@ int main(int argc, char* argv[])
               }
               else if (stations.size() > 1) {
                   std::cerr << "Sorry, more than one station matches the given name: '" << str << "'" << std::endl;
-                  for(const auto station : stations) {
+                  for(const auto& station : stations) {
                       std::cerr << "    '" << station._name << "'" << std::endl;
                   }
               }

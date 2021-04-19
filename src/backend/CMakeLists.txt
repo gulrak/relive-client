@@ -4,6 +4,7 @@ set(RELIVE_BACKEND_SOURCE
     logging.cpp
     player.cpp
     relivedb.cpp
+    rldata.cpp
     system.cpp
 )
 set(RELIVE_BACKEND_HEADER

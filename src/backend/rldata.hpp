@@ -67,6 +67,8 @@ struct Track
         return (_streamId != nt._streamId || _name != nt._name || _artist != nt._artist ||
                 _type != nt._type || _time != nt._time || _flags != nt._flags || _metaInfo != nt._metaInfo);
     }
+
+    std::string reLiveURL(int64_t offset = 0) const;
 };
 
 struct Stream
@@ -117,6 +119,8 @@ struct Stream
         }
         return _tracks.empty() ? 0 : _tracks.size() - 1;
     }
+
+    std::string reLiveURL() const;
 };
 
 struct Url
@@ -139,6 +143,7 @@ struct Url
 struct Station
 {
     int64_t _id = -1;
+    int64_t _reliveId = 0;
     int _protocol = 0;
     std::string _name;
     // non api fields:
@@ -153,6 +158,8 @@ struct Station
     
     bool needsUpdate(const Station& ns)
     {
-        return (_protocol != ns._protocol || _name != ns._name || _flags != ns._flags || _metaInfo != ns._metaInfo);
+        return (_reliveId != ns._reliveId || _protocol != ns._protocol || _name != ns._name || _flags != ns._flags || _metaInfo != ns._metaInfo);
     }
+
+    std::string reLiveURL() const;
 };

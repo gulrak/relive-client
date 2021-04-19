@@ -25,35 +25,14 @@
 // SOFTWARE.
 //
 //---------------------------------------------------------------------------------------
-// fs_std.hpp - The dynamic switching header that includes std::filesystem if detected
-//              or ghc::filesystem if not, and makes the resulting API available in the
-//              namespace fs.
+// fs_fwd.hpp - The forwarding header for the header/implementation seperated usage of
+//              ghc::filesystem.
+// This file can be include at any place, where ghc::filesystem api is needed while
+// not bleeding implementation details (e.g. system includes) into the global namespace,
+// as long as one cpp includes fs_impl.hpp to deliver the matching implementations.
 //---------------------------------------------------------------------------------------
-#ifndef GHC_FILESYSTEM_STD_H
-#if defined(__APPLE__)
-#include <Availability.h>
-#endif
-#if ((defined(_MSVC_LANG) && _MSVC_LANG >= 201703L) || (defined(__cplusplus) && __cplusplus >= 201703L)) && defined(__has_include)
-#if __has_include(<filesystem>) && (!defined(__MAC_OS_X_VERSION_MIN_REQUIRED) || __MAC_OS_X_VERSION_MIN_REQUIRED >= 101500)
-#define GHC_USE_STD_FS
-#include <filesystem>
-namespace fs {
-using namespace std::filesystem;
-using ifstream = std::ifstream;
-using ofstream = std::ofstream;
-using fstream = std::fstream;
-}
-#endif
-#endif
-#ifndef GHC_USE_STD_FS
-//#define GHC_WIN_DISABLE_WSTRING_STORAGE_TYPE
+#ifndef GHC_FILESYSTEM_FWD_H
+#define GHC_FILESYSTEM_FWD_H
+#define GHC_FILESYSTEM_FWD
 #include <ghc/filesystem.hpp>
-namespace fs {
-using namespace ghc::filesystem;
-using ifstream = ghc::filesystem::ifstream;
-using ofstream = ghc::filesystem::ofstream;
-using fstream = ghc::filesystem::fstream;
-} 
-#endif
-#endif // GHC_FILESYSTEM_STD_H
-
+#endif // GHC_FILESYSTEM_FWD_H

@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
-set(CMAKE_OSX_DEPLOYMENT_TARGET "10.12" CACHE STRING "Minimum OS X deployment version")
+#set(CMAKE_OSX_DEPLOYMENT_TARGET "10.12" CACHE STRING "Minimum OS X deployment version")
 project(reLive VERSION 0.5)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -52,11 +52,12 @@ else()
     set(LIBRESSL_PREFIX ${CMAKE_BINARY_DIR}/external/libressl)
     FetchExternalProject(libressl
         PREFIX "${LIBRESSL_PREFIX}"
-        URL "https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.0.0.tar.gz"
-        URL_HASH SHA1=8c63219bb6be84b75b9ffed16ca419e1ed7efbdd
+        URL "https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.3.1.tar.gz"
+        URL_HASH SHA1=b86b9f566efe3b3a43cf4796af1ab719b4d0f63f
         CMAKE_ARGS
             "-DLIBRESSL_APPS=OFF"
             "-DLIBRESSL_TESTS=OFF"
+            "-DCMAKE_OSX_DEPLOYMENT_TARGET=10.12"
     )
     find_package(LibreSSL REQUIRED)
     include_directories(${LIBRESSL_INCLUDE_DIR})
