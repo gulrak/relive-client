@@ -38,7 +38,7 @@ namespace fs = ghc::filesystem;
 #ifdef RELIVE_RTAUDIO_BACKEND
 int playStreamCallback(void* output, void* /*input*/, unsigned int frameCount, double /*streamTime*/, RtAudioStreamStatus /*status*/, void* userData)
 {
-    Player* player = static_cast<Player*>(userData);
+    relive::Player* player = static_cast<relive::Player*>(userData);
     player->playMusic((unsigned char*)output, frameCount);
     return 0;
 }
@@ -56,6 +56,7 @@ int playStreamCallback(const void* /*input*/, void* output, unsigned long frameC
 }
 #endif
 
+namespace relive {
 
 using SampleType = short;
 
@@ -70,9 +71,9 @@ struct Player::impl
     ghc::net::uri _source;
     std::shared_ptr<httplib::Client> _session;
     std::shared_ptr<Stream> _streamInfo;
-    int64_t _offset = 0;            // fetch offset in stream (bytes)
-    int64_t _decodePosition = 0;    // decode offset in stream (bytes)
-    int64_t _playPosition = 0;      // play offset in stream (sample frames)
+    int64_t _offset = 0;          // fetch offset in stream (bytes)
+    int64_t _decodePosition = 0;  // decode offset in stream (bytes)
+    int64_t _playPosition = 0;    // play offset in stream (sample frames)
     int64_t _size = 0;
     int _chunkSize = 128 * 1024;
     int _frameRate = 44100;
@@ -124,13 +125,13 @@ Player::Player()
 #endif
 #ifdef RELIVE_PORTAUDIO_BACKEND
 #ifdef __linux__
-    freopen("/dev/null","w",stderr);
+    freopen("/dev/null", "w", stderr);
 #endif
-    PaError err= Pa_Initialize();
+    PaError err = Pa_Initialize();
 #ifdef __linux__
-    freopen("/dev/tty","w",stderr);
+    freopen("/dev/tty", "w", stderr);
 #endif
-    if( err != paNoError ) {
+    if (err != paNoError) {
         ERROR_LOG(0, "Couldn't initalize PortAudio: " << Pa_GetErrorText(err));
         throw std::runtime_error(std::string("Couldn't initalize PortAudio: ") + Pa_GetErrorText(err));
     }
@@ -161,7 +162,7 @@ void Player::configureAudio()
         _impl->_dac.openStream(&parameters, NULL, RTAUDIO_SINT16, _impl->_frameRate, &bufferFrames, &playStreamCallback, this);
         //--std::cout << "Buffer choosen: " << bufferFrames << ", latency: " << _impl->_dac.getStreamLatency() <<  std::endl;
     }
-    catch ( RtAudioError& e ) {
+    catch (RtAudioError& e) {
         ERROR_LOG(0, "Error while initializing audio: " << e.getMessage());
     }
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
@@ -169,11 +170,10 @@ void Player::configureAudio()
     param.channelCount = _impl->_numChannels;
     param.device = Pa_GetDefaultOutputDevice();
     param.hostApiSpecificStreamInfo = NULL;
-    param.suggestedLatency = 1.0; // TODO: optimize
+    param.suggestedLatency = 1.0;  // TODO: optimize
     param.sampleFormat = paInt16;
     int rc = 0;
-    if((rc = Pa_OpenStream(&_impl->_paStream, NULL, &param, _impl->_frameRate, paFramesPerBufferUnspecified, paNoFlag, playStreamCallback, this)) < 0 )
-    {
+    if ((rc = Pa_OpenStream(&_impl->_paStream, NULL, &param, _impl->_frameRate, paFramesPerBufferUnspecified, paNoFlag, playStreamCallback, this)) < 0) {
         ERROR_LOG(0, "Error while initializing audio: " << Pa_GetErrorText(rc));
     }
 #endif
@@ -189,8 +189,7 @@ void Player::disableAudio()
         _impl->_dac.closeStream();
     }
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
-    if(_impl->_paStream)
-    {
+    if (_impl->_paStream) {
         Pa_CloseStream(_impl->_paStream);
         _impl->_paStream = nullptr;
     }
@@ -203,12 +202,12 @@ void Player::startAudio()
     try {
         _impl->_dac.startStream();
     }
-    catch ( RtAudioError& e ) {
+    catch (RtAudioError& e) {
         ERROR_LOG(0, "Error while initializing audio: " << e.getMessage());
     }
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
     auto rc = Pa_StartStream(_impl->_paStream);
-    if(rc != paNoError) {
+    if (rc != paNoError) {
         ERROR_LOG(0, "Error while initializing audio: " << Pa_GetErrorText(rc));
     }
 #endif
@@ -216,7 +215,7 @@ void Player::startAudio()
 
 void Player::stopAudio()
 {
-    //std::cout << "stop audio start" << std::endl;
+    // std::cout << "stop audio start" << std::endl;
 #ifdef RELIVE_RTAUDIO_BACKEND
     try {
         _impl->_dac.stopStream();
@@ -225,18 +224,17 @@ void Player::stopAudio()
         ERROR_LOG(0, "Error while stopping audio: " << e.getMessage());
     }
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
-    if(_impl->_paStream)
-    {
+    if (_impl->_paStream) {
         Pa_StopStream(_impl->_paStream);
-        //Pa_AbortStream(_impl->_paStream);
+        // Pa_AbortStream(_impl->_paStream);
     }
 #endif
-    //std::cout << "stop audio end" << std::endl;
+    // std::cout << "stop audio end" << std::endl;
 }
 
 void Player::abortAudio()
 {
-    //std::cout << "stop audio start" << std::endl;
+    // std::cout << "stop audio start" << std::endl;
 #ifdef RELIVE_RTAUDIO_BACKEND
     try {
         _impl->_dac.abortStream();
@@ -245,24 +243,23 @@ void Player::abortAudio()
         ERROR_LOG(0, "Error while stopping audio: " << e.getMessage());
     }
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
-    if(_impl->_paStream)
-    {
-        //Pa_StopStream(_impl->_paStream);
+    if (_impl->_paStream) {
+        // Pa_StopStream(_impl->_paStream);
         Pa_AbortStream(_impl->_paStream);
     }
 #endif
-    //std::cout << "stop audio end" << std::endl;
+    // std::cout << "stop audio end" << std::endl;
 }
 
 void Player::play()
 {
-    if(hasSource()) {
+    if (hasSource()) {
         PlayerState state;
         {
             std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
             state = _impl->_state;
         }
-        if(state == eENDOFSTREAM) {
+        if (state == eENDOFSTREAM) {
             seekTo(0);
         }
         std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
@@ -274,12 +271,12 @@ void Player::play()
 
 void Player::pause()
 {
-    //std::cout << "begin pause" << std::endl;
+    // std::cout << "begin pause" << std::endl;
     std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
     _impl->_isPlaying = false;
     _impl->_state = ePAUSED;
     stopAudio();
-    //std::cout << "end pause" << std::endl;
+    // std::cout << "end pause" << std::endl;
 }
 
 PlayerState Player::state() const
@@ -300,36 +297,38 @@ int Player::playTime() const
     return int(_impl->_playPosition / _impl->_frameRate);
 }
 
-void Player::seekTo(int seconds)
+void Player::seekTo(int seconds, bool startPlay)
 {
     std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
     abortAudio();
-    if(_impl->_streamInfo) {
+    if (_impl->_streamInfo) {
         auto tt = seconds > 0 ? (double)seconds - 0.05 : (double)seconds;
-        _impl->_offset = (int64_t)(_impl->_streamInfo->_size*(tt / _impl->_streamInfo->_duration));
+        _impl->_offset = (int64_t)(_impl->_streamInfo->_size * (tt / _impl->_streamInfo->_duration));
         _impl->_decodePosition = _impl->_offset;
         _impl->_playPosition = ((double)_impl->_streamInfo->_duration * _impl->_offset / _impl->_streamInfo->_size + 0.1) * _impl->_frameRate;
         _impl->_receiveBuffer.clear();
         _impl->_sampleBuffer.clear();
-        play();
+        if(startPlay) {
+            play();
+        }
     }
 }
 
 void Player::prev()
 {
     std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
-    if(_impl->_streamInfo) {
+    if (_impl->_streamInfo) {
         const Track* prevTrack = nullptr;
         auto currentTime = playTime();
-        for(const auto& track : _impl->_streamInfo->_tracks) {
-            if(currentTime > 1 && track._time <= currentTime - 1) {
+        for (const auto& track : _impl->_streamInfo->_tracks) {
+            if (currentTime > 1 && track._time <= currentTime - 1) {
                 prevTrack = &track;
             }
             else {
                 break;
             }
         }
-        if(prevTrack) {
+        if (prevTrack) {
             seekTo(prevTrack->_time);
         }
     }
@@ -338,11 +337,11 @@ void Player::prev()
 void Player::next()
 {
     std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
-    if(_impl->_streamInfo) {
+    if (_impl->_streamInfo) {
         int64_t nextPos = 0;
         auto currentTime = playTime();
-        for(const auto& track : _impl->_streamInfo->_tracks) {
-            if(track._time > currentTime) {
+        for (const auto& track : _impl->_streamInfo->_tracks) {
+            if (track._time > currentTime) {
                 seekTo(track._time);
                 break;
             }
@@ -359,10 +358,10 @@ int Player::volume() const
 void Player::volume(int vol)
 {
     std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
-    if(vol < 0) {
+    if (vol < 0) {
         vol = 0;
     }
-    else if(vol > 100) {
+    else if (vol > 100) {
         vol = 100;
     }
     _impl->_volume = vol;
@@ -374,7 +373,7 @@ void Player::run()
     std::this_thread::sleep_for(100ms);
     while (_impl->_isRunning) {
         if (_impl->_isPlaying) {
-            if(_impl->_state != eENDOFSTREAM) {
+            if (_impl->_state != eENDOFSTREAM) {
                 if (_impl->_receiveBuffer.free() > _impl->_chunkSize) {
                     if (!fillBuffer()) {
                         std::this_thread::sleep_for(1000ms);
@@ -408,7 +407,7 @@ void Player::setSource(Mode mode, ghc::net::uri source, int64_t size)
     _impl->_streamInfo.reset();
     _impl->_receiveBuffer.clear();
     _impl->_sampleBuffer.clear();
-    switch(mode) {
+    switch (mode) {
         case eFile:
             _impl->_size = fs::file_size(_impl->_source.request_path());
             break;
@@ -429,11 +428,11 @@ void Player::setSource(Mode mode, ghc::net::uri source, int64_t size)
 
 void Player::setSource(const Stream& stream)
 {
-    if(!stream._tracks.empty() && stream._station && !stream._station->_api.empty()) {
+    if (!stream._tracks.empty() && stream._station && !stream._station->_api.empty()) {
         auto station = stream._station;
         auto api = ghc::net::uri(station->_api.front());
         api.scheme("http");
-        //api.path(api.path() + "getstreamdata/?v=11&streamid=" + std::to_string(stream._reliveId));
+        // api.path(api.path() + "getstreamdata/?v=11&streamid=" + std::to_string(stream._reliveId));
         api.path(api.path() + "getmediadata/?v=11&streamid=" + std::to_string(stream._reliveId));
         setSource(eReLiveStream, api, stream._size);
         {
@@ -445,12 +444,12 @@ void Player::setSource(const Stream& stream)
 
 void Player::setSource(const Track& track)
 {
-    if(track._stream && track._stream->_station && !track._stream->_station->_api.empty()) {
+    if (track._stream && track._stream->_station && !track._stream->_station->_api.empty()) {
         setSource(*track._stream);
         {
             std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
             auto tt = track._time > 0 ? (double)track._time - 0.05 : (double)track._time;
-            _impl->_offset = (int64_t)(track._stream->_size*(tt / track._stream->_duration));
+            _impl->_offset = (int64_t)(track._stream->_size * (tt / track._stream->_duration));
             _impl->_decodePosition = _impl->_offset;
             _impl->_playPosition = ((double)track._stream->_duration * _impl->_offset / track._stream->_size + 0.1) * _impl->_frameRate;
             DEBUG_LOG(1, "New play position: " << _impl->_offset << "/" << _impl->_playPosition);
@@ -483,7 +482,7 @@ bool Player::fillBuffer()
                     is.read(_impl->_chunk.data(), _impl->_chunkSize);
                     if (is.gcount()) {
                         std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
-                        if(_impl->_offset == offset) {
+                        if (_impl->_offset == offset) {
                             // add only if we have not changed offset due to seek/pause/change of stream
                             _impl->_receiveBuffer.push(_impl->_chunk.data(), is.gcount());
                             _impl->_offset += is.gcount();
@@ -495,27 +494,25 @@ bool Player::fillBuffer()
             break;
         }
         case eReLiveStream: {
-            httplib::Headers headers = {
-                { "User-Agent", relive::userAgent() }
-            };
+            httplib::Headers headers = {{"User-Agent", relive::userAgent()}};
             int64_t fetchSize;
             int64_t offset;
             std::string range;
             {
                 std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
                 offset = _impl->_offset;
-                fetchSize = _impl->_size > offset ? (std::min)(_impl->_size-offset, static_cast<int64_t>(_impl->_chunkSize)) : 0;
+                fetchSize = _impl->_size > offset ? (std::min)(_impl->_size - offset, static_cast<int64_t>(_impl->_chunkSize)) : 0;
                 range = "&start=" + std::to_string(offset) + "&length=" + std::to_string(fetchSize);
             }
-            if(fetchSize>0) {
+            if (fetchSize > 0) {
                 std::string path = _impl->_source.request_path() + range;
                 DEBUG_LOG(2, "Fetching eReLiveStream: " << path);
                 auto res = _impl->_session->Get(path.c_str(), headers);
-                if(res && res->status == 200) {
+                if (res && res->status == 200) {
                     DEBUG_LOG(3, "reLiveStream: About to push " << res->body.size() << " bytes, (buffer has " << _impl->_receiveBuffer.free() << " bytes free)");
                     {
                         std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
-                        if(_impl->_offset == offset) {
+                        if (_impl->_offset == offset) {
                             // add only if we have not changed offset due to seek/pause/change of stream
                             _impl->_receiveBuffer.push(res->body.data(), res->body.size());
                             _impl->_offset += res->body.size();
@@ -524,7 +521,7 @@ bool Player::fillBuffer()
                     DEBUG_LOG(2, "reLiveStream: Pushed " << res->body.size() << " bytes into stream buffer");
                 }
                 else {
-                    if(res) {
+                    if (res) {
                         ERROR_LOG(1, "reLiveStream: fetch failed (" << res->status << ") for range " << range);
                     }
                     else {
@@ -535,21 +532,18 @@ bool Player::fillBuffer()
             break;
         }
         case eMediaStream: {
-            auto range = "bytes=" + std::to_string(_impl->_offset) + "-" + std::to_string(_impl->_offset+_impl->_chunkSize-1);
-            httplib::Headers headers = {
-                { "User-Agent", relive::userAgent() },
-                { "Range", range }
-            };
+            auto range = "bytes=" + std::to_string(_impl->_offset) + "-" + std::to_string(_impl->_offset + _impl->_chunkSize - 1);
+            httplib::Headers headers = {{"User-Agent", relive::userAgent()}, {"Range", range}};
             std::string path = _impl->_source.request_path();
             DEBUG_LOG(2, "Fetching eMediaStream: " << _impl->_source.str() << " - Range: " << range);
             auto res = _impl->_session->Get(path.c_str(), headers);
-            if(res && res->status == 206) {
+            if (res && res->status == 206) {
                 _impl->_receiveBuffer.push(res->body.data(), res->body.size());
                 _impl->_offset += res->body.size();
                 DEBUG_LOG(2, "MediaStream: Pushed " << res->body.size() << " bytes into stream buffer");
             }
             else {
-                if(res) {
+                if (res) {
                     ERROR_LOG(1, "MediaStream: fetch failed (" << res->status << ") for range " << range);
                 }
                 else {
@@ -570,90 +564,89 @@ bool Player::fillBuffer()
 void Player::streamSCast()
 {
     using namespace std::chrono_literals;
-    httplib::Headers headers = {
-        { "User-Agent", relive::userAgent() },
-        { "Icy-MetaData", "1" }
-    };
+    httplib::Headers headers = {{"User-Agent", relive::userAgent()}, {"Icy-MetaData", "1"}};
     size_t size = 0;
     size_t metaint = 0;
     size_t block = 0;
     bool inMetaData = false;
     std::string metaData;
     DEBUG_LOG(2, "Starting eSCStream: " << _impl->_source.str());
-    auto res = _impl->_session->Get(_impl->_source.request_path().c_str(), headers,
-                                    [&](const httplib::Response& response) {
-                                        metaint = httplib::detail::get_header_value_uint64(response.headers, "icy-metaint");
-                                        block = metaint;
-                                        if(response.status != 200 || metaint <= 0) {
-                                            return false;
-                                        }
-                                        return true;
-                                    },
-                                    [&](const char *data, uint64_t data_length) {
-                                        //std::clog << "Received " << data_length << " bytes, offset " << offset << " [" << block << (inMetaData ? "M" : "-") << "]" << std::endl;
-                                        while(data_length) {
-                                            if(inMetaData) {
-                                                if(!block) {
-                                                    block = static_cast<unsigned char>(*data) * 16;
-                                                    //std::clog << "Metadata-length: " << block << std::endl;
-                                                    ++data;
-                                                    --data_length;
-                                                    if(!block) {
-                                                        block = metaint;
-                                                        inMetaData = false;
-                                                    }
-                                                    else {
-                                                        metaData.clear();
-                                                    }
-                                                }
-                                                else {
-                                                    if(data_length < block) {
-                                                        //std::clog << "Metadata: " << " [" << block << (inMetaData ? "M" : "-") << "]" << std::endl;
-                                                        metaData.append(data, data_length);
-                                                        data += data_length;
-                                                        block -= static_cast<size_t>(data_length);
-                                                        data_length = 0;
-                                                    }
-                                                    else {
-                                                        metaData.append(data, block);
-                                                        //std::clog << "MetaData: " << metaData.c_str()  << " [" << metaData.size() << " Bytes]" << std::endl;
-                                                        data += block;
-                                                        data_length -= block;
-                                                        block = metaint;
-                                                        inMetaData = false;
-                                                    }
-                                                }
-                                            }
-                                            else {
-                                                if(data_length < block) {
-                                                    while(_impl->_receiveBuffer.free() < data_length) {
-                                                        //std::clog << "sleep" << std::endl;
-                                                        std::this_thread::sleep_for(100ms);
-                                                    }
-                                                    _impl->_receiveBuffer.push(data, data_length);
-                                                    DEBUG_LOG(2, "Received " << data_length << " stream bytes" << " [" << block << (inMetaData ? "M" : "-") << "]");
-                                                    size += data_length;
-                                                    data += data_length;
-                                                    block -= static_cast<size_t>(data_length);
-                                                    data_length = 0;
-                                                }
-                                                else {
-                                                    while(_impl->_receiveBuffer.free() < block) {
-                                                        //std::clog << "sleep" << std::endl;
-                                                        std::this_thread::sleep_for(100ms);
-                                                    }
-                                                    _impl->_receiveBuffer.push(data, block);
-                                                    DEBUG_LOG(2, "Received " << block << " stream bytes");
-                                                    size += block;
-                                                    data += block;
-                                                    data_length -= block;
-                                                    block = 0;
-                                                    inMetaData = true;
-                                                }
-                                            }
-                                        }
-                                        return _impl->_isPlaying && _impl->_isRunning ? true : false;
-                                    });
+    auto res = _impl->_session->Get(
+        _impl->_source.request_path().c_str(), headers,
+        [&](const httplib::Response& response) {
+            metaint = httplib::detail::get_header_value_uint64(response.headers, "icy-metaint");
+            block = metaint;
+            if (response.status != 200 || metaint <= 0) {
+                return false;
+            }
+            return true;
+        },
+        [&](const char* data, uint64_t data_length) {
+            // std::clog << "Received " << data_length << " bytes, offset " << offset << " [" << block << (inMetaData ? "M" : "-") << "]" << std::endl;
+            while (data_length) {
+                if (inMetaData) {
+                    if (!block) {
+                        block = static_cast<unsigned char>(*data) * 16;
+                        // std::clog << "Metadata-length: " << block << std::endl;
+                        ++data;
+                        --data_length;
+                        if (!block) {
+                            block = metaint;
+                            inMetaData = false;
+                        }
+                        else {
+                            metaData.clear();
+                        }
+                    }
+                    else {
+                        if (data_length < block) {
+                            // std::clog << "Metadata: " << " [" << block << (inMetaData ? "M" : "-") << "]" << std::endl;
+                            metaData.append(data, data_length);
+                            data += data_length;
+                            block -= static_cast<size_t>(data_length);
+                            data_length = 0;
+                        }
+                        else {
+                            metaData.append(data, block);
+                            // std::clog << "MetaData: " << metaData.c_str()  << " [" << metaData.size() << " Bytes]" << std::endl;
+                            data += block;
+                            data_length -= block;
+                            block = metaint;
+                            inMetaData = false;
+                        }
+                    }
+                }
+                else {
+                    if (data_length < block) {
+                        while (_impl->_receiveBuffer.free() < data_length) {
+                            // std::clog << "sleep" << std::endl;
+                            std::this_thread::sleep_for(100ms);
+                        }
+                        _impl->_receiveBuffer.push(data, data_length);
+                        DEBUG_LOG(2, "Received " << data_length << " stream bytes"
+                                                 << " [" << block << (inMetaData ? "M" : "-") << "]");
+                        size += data_length;
+                        data += data_length;
+                        block -= static_cast<size_t>(data_length);
+                        data_length = 0;
+                    }
+                    else {
+                        while (_impl->_receiveBuffer.free() < block) {
+                            // std::clog << "sleep" << std::endl;
+                            std::this_thread::sleep_for(100ms);
+                        }
+                        _impl->_receiveBuffer.push(data, block);
+                        DEBUG_LOG(2, "Received " << block << " stream bytes");
+                        size += block;
+                        data += block;
+                        data_length -= block;
+                        block = 0;
+                        inMetaData = true;
+                    }
+                }
+            }
+            return _impl->_isPlaying && _impl->_isRunning ? true : false;
+        });
     pause();
 }
 
@@ -661,31 +654,30 @@ void Player::streamSCast()
 
 void Player::decodeFrame()
 {
-    //std::clog << "decode..." << std::endl;
-    if(_impl->_receiveBuffer.canPull(200) && _impl->_sampleBuffer.free() >= MINIMP3_MAX_SAMPLES_PER_FRAME) {
-        //std::clog << "decode... (" << _impl->_receiveBuffer.filled() << " available)" << std::endl;
+    // std::clog << "decode..." << std::endl;
+    if (_impl->_receiveBuffer.canPull(200) && _impl->_sampleBuffer.free() >= MINIMP3_MAX_SAMPLES_PER_FRAME) {
+        // std::clog << "decode... (" << _impl->_receiveBuffer.filled() << " available)" << std::endl;
         short pcm[MINIMP3_MAX_SAMPLES_PER_FRAME];
         uint8_t mp3[BUFFER_PEEK_SIZE];
         auto avail = _impl->_receiveBuffer.filled();
         auto peekSize = (std::min)(avail, BUFFER_PEEK_SIZE);
-        DEBUG_LOG(4, "decoding from " << avail  << " buffered bytes");
+        DEBUG_LOG(4, "decoding from " << avail << " buffered bytes");
         _impl->_receiveBuffer.peek((char*)mp3, BUFFER_PEEK_SIZE);
         int samples = mp3dec_decode_frame(&_impl->_mp3d, mp3, peekSize, pcm, &_impl->_mp3info);
-        DEBUG_LOG(4, "dropping " << _impl->_mp3info.frame_bytes  << " decoded or skipped bytes from receive buffer");
+        DEBUG_LOG(4, "dropping " << _impl->_mp3info.frame_bytes << " decoded or skipped bytes from receive buffer");
         _impl->_receiveBuffer.drop(_impl->_mp3info.frame_bytes);
         _impl->_decodePosition += _impl->_mp3info.frame_bytes;
-        if(samples>0 && _impl->_mp3info.frame_bytes > 0) {
-            _impl->_sampleBuffer.push(pcm, samples*_impl->_mp3info.channels);
+        if (samples > 0 && _impl->_mp3info.frame_bytes > 0) {
+            _impl->_sampleBuffer.push(pcm, samples * _impl->_mp3info.channels);
             DEBUG_LOG(4, "decoded " << _impl->_mp3info.frame_bytes << " bytes into " << samples << " samples (" << _impl->_mp3info.hz << "Hz)");
             //--std::clog << "Decoded " << _impl->_mp3info.frame_bytes << " bytes into " << samples << " samples (" << _impl->_mp3info.hz << "Hz)" << std::endl;
         }
         else {
-            //std::clog << "No samples but " << _impl->_mp3info.frame_bytes << " frame bytes" << std::endl;
+            // std::clog << "No samples but " << _impl->_mp3info.frame_bytes << " frame bytes" << std::endl;
         }
     }
-    //DEBUG_LOG(4, "decoded " << _impl->_decodePosition << "/" << _impl->_size << " bytes");
-    if(_impl->_sampleBuffer.free() > 0 && _impl->_size && _impl->_decodePosition+200 >= _impl->_size)
-    {
+    // DEBUG_LOG(4, "decoded " << _impl->_decodePosition << "/" << _impl->_size << " bytes");
+    if (_impl->_sampleBuffer.free() > 0 && _impl->_size && _impl->_decodePosition + 200 >= _impl->_size) {
         /*SampleType t[64];
         memset(t, 0, sizeof(t));
         while(_impl->_sampleBuffer.free() >= 64)
@@ -696,55 +688,52 @@ void Player::decodeFrame()
 
 void Player::playMusic(unsigned char* buffer, int frames)
 {
-    auto requestedTime = frames*1000/_impl->_frameRate;
+    auto requestedTime = frames * 1000 / _impl->_frameRate;
     //--std::clog << "play " << frames << " (~" << requestedTime << "ms), sample buffer contains " << (_impl->_sampleBuffer.filled() / _impl->_numChannels) << std::endl;
     auto start = std::chrono::steady_clock::now();
     auto* dst = (SampleType*)buffer;
     bool didDecode = false;
-    if(_impl->_state != eENDOFSTREAM) {
-        if(!_impl->_receiveBuffer.filled()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(requestedTime/2));
+    if (_impl->_state != eENDOFSTREAM) {
+        if (!_impl->_receiveBuffer.filled()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(requestedTime / 2));
             //--std::clog << "Buffer after sleep: " << _impl->_receiveBuffer.filled() << " bytes" << std::endl;
-        } else {
+        }
+        else {
             //--std::clog << "Buffer filled with: " << _impl->_receiveBuffer.filled() << " bytes" << std::endl;
         }
-        if(_impl->_sampleBuffer.filled() < (unsigned int)frames*_impl->_numChannels && _impl->_receiveBuffer.filled())
-        {
-            //unsigned int lastFill;
+        if (_impl->_sampleBuffer.filled() < (unsigned int)frames * _impl->_numChannels && _impl->_receiveBuffer.filled()) {
+            // unsigned int lastFill;
             do {
-                //lastFill = _impl->_sampleBuffer.filled();
+                // lastFill = _impl->_sampleBuffer.filled();
                 decodeFrame();
-            }
-            while(_impl->_sampleBuffer.filled() < (unsigned int)frames*_impl->_numChannels && _impl->_receiveBuffer.filled() && std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count()<requestedTime*2/3);
+            } while (_impl->_sampleBuffer.filled() < (unsigned int)frames * _impl->_numChannels && _impl->_receiveBuffer.filled() &&
+                     std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() < requestedTime * 2 / 3);
         }
     }
 
     int zeros = 0;
-    if( _impl->_state == ePAUSED || _impl->_state == eENDOFSTREAM )
-    {
-        for( ; frames; --frames )
-        {
+    if (_impl->_state == ePAUSED || _impl->_state == eENDOFSTREAM) {
+        for (; frames; --frames) {
             ++zeros;
             *dst++ = 0;
-            if( _impl->_numChannels == 2 )
+            if (_impl->_numChannels == 2)
                 *dst++ = 0;
         }
     }
-    else
-    {
+    else {
         int len = _impl->_sampleBuffer.pull(dst, frames * _impl->_numChannels);
         _impl->_playPosition += len / _impl->_numChannels;
         auto* ptr = (SampleType*)buffer;
-        for(int i = 0; i < len; ++i, ++ptr) {
+        for (int i = 0; i < len; ++i, ++ptr) {
             *ptr = (SampleType)((((int)*ptr) * _impl->_volume) / 100);
         }
         dst += len;
-        if(len < frames * _impl->_numChannels) {
-            if(_impl->_state == eENDING) {
+        if (len < frames * _impl->_numChannels) {
+            if (_impl->_state == eENDING) {
                 DEBUG_LOG(3, "Stream play ended.");
                 _impl->_state = eENDOFSTREAM;
             }
-            while( len++ < frames * _impl->_numChannels ) {
+            while (len++ < frames * _impl->_numChannels) {
                 ++zeros;
                 *dst++ = 0;
             }
@@ -761,9 +750,9 @@ std::vector<Player::Device> Player::getOutputDevices()
 #ifdef RELIVE_RTAUDIO_BACKEND
     unsigned int devices = _impl->_dac.getDeviceCount();
     RtAudio::DeviceInfo info;
-    for(unsigned int i=0; i<devices; ++i) {
-        info = _impl->_dac.getDeviceInfo( i );
-        if(info.probed && info.outputChannels >= 2) {
+    for (unsigned int i = 0; i < devices; ++i) {
+        info = _impl->_dac.getDeviceInfo(i);
+        if (info.probed && info.outputChannels >= 2) {
             result.push_back(Device{info.name, info.outputChannels, info.preferredSampleRate});
         }
     }
@@ -771,3 +760,4 @@ std::vector<Player::Device> Player::getOutputDevices()
     return result;
 }
 
+}

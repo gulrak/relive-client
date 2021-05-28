@@ -109,7 +109,7 @@ public:
                 attr = A_BOLD;
             }
             result.emplace_back(ghc::cui::cell::eRight,  1, attr, stream._id == _activeStream ? ">" : " ");
-            result.emplace_back(ghc::cui::cell::eLeft,  10, attr, formattedTime(stream._timestamp));
+            result.emplace_back(ghc::cui::cell::eLeft,  10, attr, formattedDate(stream._timestamp));
             result.emplace_back(ghc::cui::cell::eLeft,  35, attr, stream._host);
             result.emplace_back(ghc::cui::cell::eLeft,  40, attr, stream._name);
             result.emplace_back(ghc::cui::cell::eRight,  8, attr, formattedDuration(stream._duration));
@@ -484,7 +484,7 @@ public:
             if(stream) {
                 auto space = width() - 4 - state.size();
                 if(space > 0) {
-                    auto title = "[" + formattedTime(stream->_timestamp) + "] " + stream->_host + ": " + stream->_name;
+                    auto title = "[" + formattedDate(stream->_timestamp) + "] " + stream->_host + ": " + stream->_name;
                     title = title.substr(0, width() - 4 - state.size());
                     print(2 + state.size(), height() - 5, title);
                 }

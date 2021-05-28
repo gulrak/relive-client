@@ -13,6 +13,8 @@
 //#define RELIVE_RTAUDIO_BACKEND
 //#define RELIVE_PORTAUDIO_BACKEND
 
+namespace relive {
+
 enum PlayerState { ePAUSED, ePLAYING, eENDOFSTREAM, eENDING };
 
 class Player
@@ -34,7 +36,7 @@ public:
 
     PlayerState state() const;
     int playTime() const;
-    void seekTo(int seconds);
+    void seekTo(int seconds, bool startPlay = true);
     void prev();
     void next();
     int volume() const;
@@ -62,3 +64,5 @@ protected:
     struct impl;
     std::unique_ptr<impl> _impl;
 };
+
+}

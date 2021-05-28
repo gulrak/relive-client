@@ -140,6 +140,7 @@ ReLiveDB::~ReLiveDB()
 void ReLiveDB::setConfigValueString(const std::string& key, const std::string& value)
 {
     using namespace sqlite_orm;
+    DEBUG_LOG(2, "Setting config value: " << key << " = '" << value << "'");
     KeyValue kv{key, value};
     std::lock_guard<Mutex> lock{_mutex};
     storage().replace(kv);
@@ -244,13 +245,13 @@ std::vector<Station> ReLiveDB::findStations(const std::string& pattern)
 std::vector<Stream> ReLiveDB::findStreams(const std::string& pattern)
 {
     std::lock_guard<Mutex> lock{_mutex};
-    return storage().get_all<Stream>(where(like(&Stream::_name, pattern) or like(&Stream::_host, pattern)));
+    return storage().get_all<Stream>(where(like(&Stream::_name, pattern) or like(&Stream::_host, pattern)), order_by(&Stream::_timestamp).desc());
 }
 
 std::vector<Track> ReLiveDB::findTracks(const std::string& pattern)
 {
     std::lock_guard<Mutex> lock{_mutex};
-    return storage().get_all<Track>(where(like(&Track::_name, pattern) or like(&Track::_artist, pattern)));
+    return storage().get_all<Track>(inner_join<Stream>(on(c(&Stream::_id) == &Track::_streamId)), where(like(&Track::_name, pattern) or like(&Track::_artist, pattern)), order_by(&Stream::_timestamp).desc());
 }
 
 std::vector<ChatMessage> ReLiveDB::fetchChat(const Stream& stream)

@@ -1,6 +1,7 @@
 
 
 set(RELIVE_BACKEND_SOURCE
+    hash.cpp
     logging.cpp
     player.cpp
     relivedb.cpp
@@ -8,12 +9,14 @@ set(RELIVE_BACKEND_SOURCE
     system.cpp
 )
 set(RELIVE_BACKEND_HEADER
+    hash.hpp
     logging.hpp
     player.hpp
     relivedb.hpp
     ringbuffer.hpp
     rldata.hpp
     system.hpp
+    utility.hpp
 )
 set(RELIVE_BACKEND_THIRDPARTY
     ../../thirdparty/ghc/filesystem.hpp

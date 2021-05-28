@@ -170,7 +170,7 @@ std::string formattedDuration(int64_t seconds)
     return result;
 }
 
-std::string formattedTime(int64_t unixTimestamp)
+std::string formattedDate(int64_t unixTimestamp)
 {
     std::string result;
     struct std::tm* ti = nullptr;

@@ -13,10 +13,12 @@
  * TODO: Selecting a default station
  * TODO: Remembering where a stream was stopped
  */
+#include <backend/hash.hpp>
 #include <backend/logging.hpp>
 #include <backend/relivedb.hpp>
 #include <backend/player.hpp>
 #include <backend/system.hpp>
+#include <backend/utility.hpp>
 #include <version/version.hpp>
 #include <ghc/options.hpp>
 #include <rtaudio/RtAudio.h>
@@ -25,9 +27,11 @@
 #include <imguix/imguix.h>
 #include <resources/feather_icons.h>
 
+#include "info.hpp"
 #include "stylemanager.h"
 
 #include <iostream>
+#include <regex>
 #include <set>
 
 using namespace std::literals;
@@ -432,16 +436,11 @@ public:
         _headerFont = addFontFromResourceTTF("DejaVuSans.ttf", HEADER_FONT_SIZE);
         _monoFont = io.Fonts->AddFontDefault();
         fetchStations();
-        auto defaultStation = _rdb.getConfigValue(Keys::default_station, std::string());
-        for(const auto& station : _stations) {
-            if(station._name == defaultStation) {
-                DEBUG_LOG(2, "found default station '" << station._name << "'");
-                selectStation(station);
-            }
-        }
     }
 
-    void doTeardown() override {}
+    void doTeardown() override {
+        savePosition();
+    }
 
     bool selectStation(const std::string& name)
     {
@@ -450,12 +449,48 @@ public:
             DEBUG_LOG(2, "comparing to '" << station._name << "'");
             if(station._name == name) {
                 DEBUG_LOG(2, "found '" << station._name << "'");
-                _activeStation = station._id;
-                _streams = station._streams;
+                selectStation(station);
                 return true;
             }
         }
         return false;
+    }
+
+    void selectStation(const Station& station)
+    {
+        _activeStation = station._id;
+        _streams = station._streams;
+        if(!_streams.empty()) {
+            _rdb.deepFetch(_streams.front(), true);
+        }
+        //_tracksModel.select(0);
+        _currentPage = CurrentPage::pSTREAMS;
+    }
+
+    void selectStream(Stream& stream, bool play = true)
+    {
+        fetchTracks(stream);
+        _rdb.setPlayed(stream);
+        _player.setSource(stream);
+        if(play) {
+            _player.play();
+        }
+        _chat = _rdb.fetchChat(stream);
+        scanForMaxNickSize();
+        recalcMessageSize();
+        _currentPage = CurrentPage::pTRACKS;
+        _needsRefresh = true;
+    }
+
+    void selectTrack(Track track)
+    {
+        _rdb.deepFetch(track);
+        if(track._stream) {
+            selectStream(*track._stream, false);
+            _player.setSource(track);
+            _player.play();
+            _currentPage = CurrentPage::pTRACKS;
+        }
     }
 
     void savePosition()
@@ -464,7 +499,11 @@ public:
             _rdb.setConfigValue(Keys::play_position, _activeTrackInfo.reLiveURL(_player.playTime()));
         }
         else if(_activeStation) {
-            _rdb.setConfigValue(Keys::play_position, _stations[_activeStation].reLiveURL());
+            for(const auto& station : _stations) {
+                if(_activeStation == station._id) {
+                    _rdb.setConfigValue(Keys::play_position, station.reLiveURL());
+                }
+            }
         }
         else {
             _rdb.setConfigValue(Keys::play_position, "");
@@ -472,9 +511,52 @@ public:
         _lastSavepoint = currentTime();
     }
 
+    bool openURL(std::string url, bool play)
+    {
+        auto [stationId, streamId, timeOffset] = parseUrl(url);
+        if(stationId>=0) {
+            _needsRefresh = true;
+            for (const auto& station : _stations) {
+                DEBUG_LOG(2, "comparing to '" << station._name << "'");
+                if (station._reliveId == stationId) {
+                    DEBUG_LOG(2, "found '" << station._name << "'");
+                    selectStation(station);
+                    if(streamId>=0) {
+                        for(auto& stream : _streams) {
+                            if(stream._reliveId == streamId) {
+                                selectStream(stream, false);
+                                if(timeOffset>=0) {
+                                    _player.seekTo(timeOffset, play);
+                                }
+                            }
+                        }
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     void handleInput(ImGuiIO& io) override
     {
+        if(io.MouseWheel) {
+            _wheelAction = 200;
+        }
         setClearColor(ImGui::ColorConvertFloat4ToU32(ImGui::GetStyle().Colors[ImGuiCol_WindowBg]));
+        if(_lateSetup) {
+            _lateSetup = false;
+            auto defaultStation = _rdb.getConfigValue(Keys::default_station, std::string());
+            auto savedPosition = _rdb.getConfigValue(Keys::play_position, std::string());
+            if (savedPosition.empty() || !openURL(savedPosition, false)) {
+                for (const auto& station : _stations) {
+                    if (station._name == defaultStation) {
+                        DEBUG_LOG(2, "found default station '" << station._name << "'");
+                        selectStation(station);
+                    }
+                }
+            }
+        }
         if(currentTime() - _lastFetch > 3600) {
             DEBUG_LOG(1, "Fetching station info...");
             _rdb.refreshStations([this](){ handleRedraw(); });
@@ -507,6 +589,10 @@ public:
             ImGui::ShowDemoWindow(&_show_demo_window);
         }
 #endif
+        _needsRefresh = false;
+        if(_wheelAction > 0) {
+            --_wheelAction;
+        }
     }
 
     void renderPlayBar(ImVec2 size)
@@ -536,8 +622,8 @@ public:
             }
             int playTimePos = _player.playTime() / dt;
             //drawList->AddRect(pos, ImVec2(pos.x + size.x, pos.y + size.y), colBorder);
-            drawList->AddLine(ImVec2(pos.x + playTimePos - 3.0f, pos.y), ImVec2(pos.x + playTimePos + 4.0f, pos.y), colCursor, 2.0f);
-            drawList->AddLine(ImVec2(pos.x + playTimePos - 3.0f, pos.y + PLAY_BAR_HEIGHT - 0.5f), ImVec2(pos.x + playTimePos + 4.0f, pos.y + PLAY_BAR_HEIGHT - 0.5f), colCursor, 2.0f);
+            drawList->AddLine(ImVec2(pos.x + playTimePos - 2.5f, pos.y), ImVec2(pos.x + playTimePos + 4.0f, pos.y), colCursor, 2.0f);
+            drawList->AddLine(ImVec2(pos.x + playTimePos - 2.5f, pos.y + PLAY_BAR_HEIGHT - 0.5f), ImVec2(pos.x + playTimePos + 4.0f, pos.y + PLAY_BAR_HEIGHT - 0.5f), colCursor, 2.0f);
             drawList->AddLine(ImVec2(pos.x + playTimePos + 0.5f, pos.y + 0.5f), ImVec2(pos.x + playTimePos + 0.5f, pos.y + PLAY_BAR_HEIGHT - 1.0f), colCursor, 2.0f);
         }
         else {
@@ -591,17 +677,6 @@ public:
             _player.next();
         }
         ImGui::EndGroup();
-    }
-
-    void selectStation(const Station& station)
-    {
-        _activeStation = station._id;
-        _streams = station._streams;
-        if(!_streams.empty()) {
-            _rdb.deepFetch(_streams.front(), true);
-        }
-        //_tracksModel.select(0);
-        _currentPage = CurrentPage::pSTREAMS;
     }
 
     void renderStations(ImVec2 pageSize)
@@ -669,6 +744,9 @@ public:
             ImGui::TableNextRow();
             bool isActive = false;
             if(stream._id == _activeStream) {
+                if(!_wheelAction) {
+                    ImGui::SetScrollHere();
+                }
                 _style.pushColor(ImGuiCol_Text, reLiveCol_TableActiveLine);
             }
             else if(!(stream._flags & Stream::ePlayed)) {
@@ -679,17 +757,11 @@ public:
             }
             ImGui::TableSetColumnIndex(0);
             if(ImGui::Selectable((std::string(stream._id == _activeStream ? playAnim[std::time(nullptr)%3] : playAnim[3]) + std::to_string(stream._id)).c_str(), stream._id == _activeStream, ImGuiSelectableFlags_SpanAllColumns)) {
-                fetchTracks(stream);
-                _rdb.setPlayed(stream);
-                _player.setSource(stream);
-                _player.play();
-                _chat = _rdb.fetchChat(stream);
-                scanForMaxNickSize();
-                recalcMessageSize();
-                _currentPage = CurrentPage::pTRACKS;
+                selectStream(stream);
+                savePosition();
             }
             ImGui::TableSetColumnIndex(1);
-            ImGui::Text("%s", formattedTime(stream._timestamp).c_str());
+            ImGui::Text("%s", formattedDate(stream._timestamp).c_str());
             ImGui::TableSetColumnIndex(2);
             ImGui::Text("%s", stream._host.c_str());
             ImGui::TableSetColumnIndex(3);
@@ -713,7 +785,7 @@ public:
             ICON_FTH_MESSAGE_SQUARE
         };
 
-        std::string stream = !_tracks.empty() ? _tracks.front()._stream->_station->_name + ": " + _tracks.front()._stream->_name + " [" + formattedTime(_tracks.front()._stream->_timestamp) + "]" : "reLive - <no stream selected>";
+        std::string stream = !_tracks.empty() ? _tracks.front()._stream->_station->_name + ": " + _tracks.front()._stream->_name + " [" + formattedDate(_tracks.front()._stream->_timestamp) + "]" : "reLive - <no stream selected>";
         setWindowTitle(stream);
         ImGui::BeginTable("TracksTable", 6,  ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollFreezeTopRow, pageSize);
         ImGui::TableSetupColumn(" ##tracks", ImGuiTableColumnFlags_WidthFixed,20);
@@ -737,6 +809,9 @@ public:
             ImGui::TableNextRow();
             bool isActive = false;
             if(track._id == _activeTrack) {
+                if(!_wheelAction) {
+                    ImGui::SetScrollHere();
+                }
                 _style.pushColor(ImGuiCol_Text, reLiveCol_TableActiveLine);
                 isActive = true;
             }
@@ -745,6 +820,17 @@ public:
                 _player.setSource(track);
                 _player.play();
                 _currentPage = CurrentPage::pTRACKS;
+                savePosition();
+            }
+            if (ImGui::BeginPopupContextItem())
+            {
+                if(ImGui::Selectable("Copy goto.relive.nu Link")) {
+                    ImGui::SetClipboardText(("https://goto.relive.nu/" + track.reLiveURL()).c_str());
+                }
+                if(ImGui::Selectable("Copy Link")) {
+                    ImGui::SetClipboardText(("relive:" + track.reLiveURL()).c_str());
+                }
+                ImGui::EndPopup();
             }
             ImGui::TableSetColumnIndex(1);
             ImGui::Text("%s", formattedDuration(track._time).c_str());
@@ -766,7 +852,7 @@ public:
 
     void renderChat(ImVec2 pageSize)
     {
-        std::string stream = !_tracks.empty() ? _tracks.front()._stream->_station->_name + ": " + _tracks.front()._stream->_name + " [" + formattedTime(_tracks.front()._stream->_timestamp) + "]" : "reLive - <no stream selected>";
+        std::string stream = !_tracks.empty() ? _tracks.front()._stream->_station->_name + ": " + _tracks.front()._stream->_name + " [" + formattedDate(_tracks.front()._stream->_timestamp) + "]" : "reLive - <no stream selected>";
         setWindowTitle(stream);
         ImGui::SetNextWindowContentSize(ImVec2(pageSize.x - 20, _chatLogHeight + ImGui::GetTextLineHeight()));
         ImGui::BeginChild("##ChatLog", ImVec2(pageSize.x - 4, pageSize.y));
@@ -824,6 +910,7 @@ public:
                 }
                 if(_activeTrack != lastId) {
                     _activeTrack = lastId;
+                    _activeTrackInfo = *lastTrackInfo;
                     _needsRefresh = true;
                 }
                 int chatPos = -1;
@@ -861,17 +948,40 @@ public:
         if(ImGui::IsItemClicked()) {
             ImGui::OpenPopup("main-more-menu");
         }
+        bool openAboutDialog = false;
         bool openSettings = false;
         if(ImGui::BeginPopup("main-more-menu")) {
-            ImGui::MenuItem("More info reLiveG...");
+            if(ImGui::MenuItem("More info reLiveG...")) {
+                openAboutDialog = true;
+            }
             if(ImGui::MenuItem("Settings...")) {
                 openSettings = true;
             }
 
             ImGui::Separator();
             if(ImGui::MenuItem("Quit")) {
-                quit();
+                 quit();
             }
+            ImGui::EndPopup();
+        }
+
+        if(openAboutDialog) {
+            ImGui::OpenPopup("About reLiveG");
+        }
+        ImGui::SetNextWindowPos(ImVec2(_width*0.5f, _height*0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(600, 350));
+        if(ImGui::BeginPopupModal("About reLiveG")) {
+            ImGui::BeginChild("##reLiveAboutText", ImVec2(590, 290));
+            if(g_info.find("@VERSION@") != std::string::npos) {
+                auto pos = g_info.find("@VERSION@");
+                g_info.replace(pos, 9, std::string(RELIVE_VERSION_STRING_LONG));
+                pos = g_info.find("@VERLINE@");
+                g_info.replace(pos, 9, std::string(std::strlen(RELIVE_VERSION_STRING_LONG), '-'));
+            }
+            ImGui::TextWrapped(g_info.c_str());
+            ImGui::EndChild();
+            if (ImGui::Button("OK", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
+            ImGui::SetItemDefaultFocus();
             ImGui::EndPopup();
         }
 
@@ -927,6 +1037,7 @@ public:
             else {
                 _style.pushColor(ImGuiCol_Text, reLiveCol_MainMenuText);
             }
+            //-----------------------------------------------------------------
             ImGui::Text("%s", label.c_str());
             if(ImGui::IsItemClicked()) {
                 _currentPage = static_cast<CurrentPage>(idx);
@@ -943,8 +1054,91 @@ public:
         ImGui::SetNextItemWidth(170);
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12);
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8,3));
-        ImGui::InputText(ICON_FTH_SEARCH "##search", &_searchText);
+        if(ImGui::InputText(ICON_FTH_SEARCH "##search", &_searchText, ImGuiInputTextFlags_EnterReturnsTrue)) {
+            if (openURL(_searchText, true)) {
+                _searchText = "";
+            }
+        }
         ImGui::PopStyleVar(2);
+
+
+        //-----------------------------------------------------------------
+        {
+            auto id = ImGui::GetItemID();
+            static bool isOpen = false;
+            static std::vector<Track> foundTracks;
+            static std::vector<Stream> foundStreams;
+            static float maxResultWidth = 0;
+            bool isDeactivated = ImGui::IsItemDeactivated();
+            if (ImGui::IsItemActivated())
+                isOpen = true;
+            float popupOffset = std::min(maxResultWidth > 170 ? maxResultWidth - 170 : 0, 400.0f);
+            ImVec2 textPos{ImGui::GetItemRectMin().x - popupOffset, ImGui::GetItemRectMax().y};
+            if (isOpen) {
+                ImGui::OpenPopup("##SearchBar");
+            }
+            auto textInputState = ImGui::GetInputTextState((ImGuiID)id);
+            if (isOpen && textInputState && textInputState->CurLenW >= 3) {
+                ImGui::SetNextWindowPos(textPos, ImGuiCond_Always);
+                if (ImGui::BeginPopup("##SearchBar", ImGuiWindowFlags_ChildWindow)) {
+                    ImGui::PushAllowKeyboardFocus(false);
+
+                    int numHints = 0;
+                    static std::string lastSearch;
+                    std::string inputStr;
+                    inputStr.resize(textInputState->TextW.size());
+
+                    ImTextStrToUtf8(inputStr.data(), (int)inputStr.size(), textInputState->TextW.Data, textInputState->TextW.Data + textInputState->TextW.Size);
+                    inputStr.resize((size_t)textInputState->CurLenW);
+
+                    maxResultWidth = 0;
+                    if (inputStr != lastSearch) {
+                        foundStreams = _rdb.findStreams("%" + inputStr + "%");
+                        foundTracks = _rdb.findTracks("%" + inputStr + "%");
+                    }
+                    for (auto&& stream : foundStreams) {
+                        std::string info = "Stream: " + formattedDate(stream._timestamp) + " " + stream._host + " - " + stream._name + "##serachitem" + std::to_string(numHints);
+                        auto textWidth = ImGui::CalcTextSize(info.c_str(), nullptr, true).x;
+                        if (textWidth > maxResultWidth) {
+                            maxResultWidth = textWidth;
+                        }
+                        if (ImGui::Selectable(info.c_str()) || ImGui::IsItemClicked()) {
+                            selectStream(stream);
+                            isOpen = false;
+                        }
+                        ++numHints;
+                        //if (numHints > 16) {
+                        //    ImGui::Text("...");
+                        //    break;
+                        //}
+                    }
+                    for (auto&& track : foundTracks) {
+                        std::string info = "Track: " + track._artist + " - " + track._name + "##serachitem" + std::to_string(numHints);;
+                        auto textWidth = ImGui::CalcTextSize(info.c_str(), nullptr, true).x;
+                        if (textWidth > maxResultWidth) {
+                            maxResultWidth = textWidth;
+                        }
+                        if (ImGui::Selectable(info.c_str()) || ImGui::IsItemClicked()) {
+                            selectTrack(track);
+                            isOpen = false;
+                        }
+                        ++numHints;
+                        //if (numHints > 16) {
+                        //    ImGui::Text("...");
+                        //    break;
+                        //}
+                    }
+
+                    ImGui::PopAllowKeyboardFocus();
+                    ImGui::EndPopup();
+                }
+                if(isDeactivated) {
+                    isOpen = false;
+                }
+
+            }
+        }
+        //-----------------------------------------------------------------
 
         //ImGui::Separator();
         ImGui::SetCursorPos(ImVec2(8, TOP_PANEL_HEIGHT));
@@ -1038,7 +1232,7 @@ private:
 
     ImU32 colorForString(const std::string& str)
     {
-        auto hash = hashFNV1a(str.c_str());
+        auto hash = relive::hash(str);//hashFNV1a(str.c_str());
         float r = 0, g = 0, b = 0;
         ImGui::ColorConvertHSVtoRGB((hash & 0xffu) / 255.0f, 0.5f, ((_darkMode ? 255 : 128) - ((hash >> 8u) & 31u)) / 255.0f, r, g, b);
         return ImGui::ColorConvertFloat4ToU32(ImVec4(r, g, b, 255));
@@ -1097,11 +1291,13 @@ private:
     float _width = 0;
     float _height = 0;
     bool _show_demo_window = true;
+    bool _lateSetup = true;
     std::mutex _mutex;
     ReLiveDB _rdb;
     int64_t _lastFetch = 0;
     int64_t _lastSavepoint = 0;
     int _lastPlayPos = 0;
+    int _wheelAction = 0;
     Player _player;
     StyleManager _style;
     ImFont* _propFont = nullptr;
