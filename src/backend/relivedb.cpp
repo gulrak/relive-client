@@ -254,6 +254,24 @@ std::vector<Track> ReLiveDB::findTracks(const std::string& pattern)
     return storage().get_all<Track>(inner_join<Stream>(on(c(&Stream::_id) == &Track::_streamId)), where(like(&Track::_name, pattern) or like(&Track::_artist, pattern)), order_by(&Stream::_timestamp).desc());
 }
 
+std::vector<ReLiveDB::FindTracksInfo> ReLiveDB::findTracksInfo(const std::string& pattern)
+{
+    std::lock_guard<Mutex> lock{_mutex};
+    std::vector<FindTracksInfo> result;
+    auto select = storage().select(columns(&Track::_id, &Stream::_name, &Track::_artist, &Track::_name, &Stream::_timestamp), inner_join<Stream>(on(c(&Stream::_id) == &Track::_streamId)), where(like(&Track::_name, pattern) or like(&Track::_artist, pattern)), order_by(&Stream::_timestamp).desc());
+    result.reserve(select.size());
+    for(auto &t : select) {
+        result.push_back({std::get<0>(t), std::get<1>(t), std::get<2>(t), std::get<3>(t), std::get<4>(t)});
+    }
+    return result;
+}
+
+std::unique_ptr<Track> ReLiveDB::fetchTrack(int64_t trackId)
+{
+    std::lock_guard<Mutex> lock{_mutex};
+    return storage().get_pointer<Track>(trackId);
+}
+
 std::vector<ChatMessage> ReLiveDB::fetchChat(const Stream& stream)
 {
     std::vector<ChatMessage> chat;

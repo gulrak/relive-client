@@ -61,7 +61,17 @@ public:
     std::vector<Station> findStations(const std::string& pattern);
     std::vector<Stream> findStreams(const std::string& pattern);
     std::vector<Track> findTracks(const std::string& pattern);
-    
+
+    struct FindTracksInfo {
+        int64_t _trackId;
+        std::string _streamName;
+        std::string _artist;
+        std::string _trackName;
+        int64_t _timestamp;
+    };
+    std::vector<FindTracksInfo> findTracksInfo(const std::string& pattern);
+    std::unique_ptr<Track> fetchTrack(int64_t trackId);
+
     std::vector<ChatMessage> fetchChat(const Stream& stream);
     
 private:

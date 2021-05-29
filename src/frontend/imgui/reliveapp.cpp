@@ -541,7 +541,7 @@ public:
     void handleInput(ImGuiIO& io) override
     {
         if(io.MouseWheel) {
-            _wheelAction = 200;
+            _wheelAction = 500;
         }
         setClearColor(ImGui::ColorConvertFloat4ToU32(ImGui::GetStyle().Colors[ImGuiCol_WindowBg]));
         if(_lateSetup) {
@@ -743,9 +743,11 @@ public:
         for (auto& stream : _streams) {
             ImGui::TableNextRow();
             bool isActive = false;
+            static int64_t lastActiveStream = 0;
             if(stream._id == _activeStream) {
-                if(!_wheelAction) {
+                if(lastActiveStream != _activeStream/*!_wheelAction*/) {
                     ImGui::SetScrollHere();
+                    lastActiveStream = _activeStream;
                 }
                 _style.pushColor(ImGuiCol_Text, reLiveCol_TableActiveLine);
             }
@@ -809,8 +811,10 @@ public:
             ImGui::TableNextRow();
             bool isActive = false;
             if(track._id == _activeTrack) {
-                if(!_wheelAction) {
+                static int64_t lastActiveTrack = 0;
+                if(lastActiveTrack != _activeTrack && !_wheelAction) {
                     ImGui::SetScrollHere();
+                    lastActiveTrack = _activeTrack;
                 }
                 _style.pushColor(ImGuiCol_Text, reLiveCol_TableActiveLine);
                 isActive = true;
@@ -1066,13 +1070,13 @@ public:
         {
             auto id = ImGui::GetItemID();
             static bool isOpen = false;
-            static std::vector<Track> foundTracks;
+            static std::vector<ReLiveDB::FindTracksInfo> foundTracks;
             static std::vector<Stream> foundStreams;
             static float maxResultWidth = 0;
             bool isDeactivated = ImGui::IsItemDeactivated();
             if (ImGui::IsItemActivated())
                 isOpen = true;
-            float popupOffset = std::min(maxResultWidth > 170 ? maxResultWidth - 170 : 0, 400.0f);
+            float popupOffset = std::min(maxResultWidth > 170 ? maxResultWidth - 170 : 0, ImGui::GetItemRectMin().x*0.9f);
             ImVec2 textPos{ImGui::GetItemRectMin().x - popupOffset, ImGui::GetItemRectMax().y};
             if (isOpen) {
                 ImGui::OpenPopup("##SearchBar");
@@ -1083,7 +1087,7 @@ public:
                 if (ImGui::BeginPopup("##SearchBar", ImGuiWindowFlags_ChildWindow)) {
                     ImGui::PushAllowKeyboardFocus(false);
 
-                    int numHints = 0;
+                    int numResults = 0;
                     static std::string lastSearch;
                     std::string inputStr;
                     inputStr.resize(textInputState->TextW.size());
@@ -1093,40 +1097,67 @@ public:
 
                     maxResultWidth = 0;
                     if (inputStr != lastSearch) {
-                        foundStreams = _rdb.findStreams("%" + inputStr + "%");
-                        foundTracks = _rdb.findTracks("%" + inputStr + "%");
+                        if(starts_with(inputStr, "t:")) {
+                            inputStr.erase(0, 2);
+                            foundStreams.clear();
+                            foundTracks = _rdb.findTracksInfo("%" + inputStr + "%");
+                        }
+                        else if(starts_with(inputStr, "s:")) {
+                            inputStr.erase(0, 2);
+                            foundStreams = _rdb.findStreams("%" + inputStr + "%");
+                            foundTracks.clear();
+                        } else {
+                            foundStreams = _rdb.findStreams("%" + inputStr + "%");
+                            foundTracks = _rdb.findTracksInfo("%" + inputStr + "%");
+                        }
                     }
-                    for (auto&& stream : foundStreams) {
-                        std::string info = "Stream: " + formattedDate(stream._timestamp) + " " + stream._host + " - " + stream._name + "##serachitem" + std::to_string(numHints);
-                        auto textWidth = ImGui::CalcTextSize(info.c_str(), nullptr, true).x;
-                        if (textWidth > maxResultWidth) {
-                            maxResultWidth = textWidth;
+                    if(!foundStreams.empty()) {
+                        ImGui::Spacing();
+                        ImGui::Text("Matching Streams:");
+                        ImGui::Spacing();
+                        for (auto&& stream : foundStreams) {
+                            std::string info = "        " + formattedDate(stream._timestamp) + " - " + stream._host + " - " + stream._name + "##serachitem" + std::to_string(numResults);
+                            auto textWidth = ImGui::CalcTextSize(info.c_str(), nullptr, true).x;
+                            if (textWidth > maxResultWidth) {
+                                maxResultWidth = textWidth;
+                            }
+                            if (ImGui::Selectable(info.c_str()) || ImGui::IsItemClicked()) {
+                                selectStream(stream);
+                                isOpen = false;
+                            }
+                            ImGui::Spacing();
+                            ++numResults;
+                            // if (numHints > 16) {
+                            //     ImGui::Text("...");
+                            //     break;
+                            // }
                         }
-                        if (ImGui::Selectable(info.c_str()) || ImGui::IsItemClicked()) {
-                            selectStream(stream);
-                            isOpen = false;
-                        }
-                        ++numHints;
-                        //if (numHints > 16) {
-                        //    ImGui::Text("...");
-                        //    break;
-                        //}
+                        ImGui::Separator();
                     }
-                    for (auto&& track : foundTracks) {
-                        std::string info = "Track: " + track._artist + " - " + track._name + "##serachitem" + std::to_string(numHints);;
-                        auto textWidth = ImGui::CalcTextSize(info.c_str(), nullptr, true).x;
-                        if (textWidth > maxResultWidth) {
-                            maxResultWidth = textWidth;
+                    if(!foundTracks.empty()) {
+                        ImGui::Spacing();
+                        ImGui::Text("Matching Tracks:");
+                        ImGui::Spacing();
+                        for (auto&& track : foundTracks) {
+                            std::string info = "        " + formattedDate(track._timestamp) + " - " + track._streamName + ":\n        " + track._artist + " - " + track._trackName + "##serachitem" + std::to_string(numResults);
+                            auto textWidth = ImGui::CalcTextSize(info.c_str(), nullptr, true).x;
+                            if (textWidth > maxResultWidth) {
+                                maxResultWidth = textWidth;
+                            }
+                            if (ImGui::Selectable(info.c_str()) || ImGui::IsItemClicked()) {
+                                auto trackPtr = _rdb.fetchTrack(track._trackId);
+                                if (trackPtr) {
+                                    selectTrack(*trackPtr);
+                                }
+                                isOpen = false;
+                            }
+                            ImGui::Spacing();
+                            ++numResults;
+                            // if (numHints > 16) {
+                            //     ImGui::Text("...");
+                            //     break;
+                            // }
                         }
-                        if (ImGui::Selectable(info.c_str()) || ImGui::IsItemClicked()) {
-                            selectTrack(track);
-                            isOpen = false;
-                        }
-                        ++numHints;
-                        //if (numHints > 16) {
-                        //    ImGui::Text("...");
-                        //    break;
-                        //}
                     }
 
                     ImGui::PopAllowKeyboardFocus();
