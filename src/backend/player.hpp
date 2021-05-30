@@ -15,7 +15,7 @@
 
 namespace relive {
 
-enum PlayerState { ePAUSED, ePLAYING, eENDOFSTREAM, eENDING };
+enum PlayerState { ePAUSED, ePLAYING, eENDOFSTREAM, eENDING, eERROR };
 
 class Player
 {
@@ -49,11 +49,15 @@ public:
     std::shared_ptr<Stream> currentStream();
     
     void playMusic(unsigned char* buffer, int frames);
+    void streamStopped();
 
+    static std::string getDynamicDefaultOutputName();
+    std::string getCurrentDefaultOutputName() const;
     std::vector<Device> getOutputDevices();
 
+    void configureAudio(std::string deviceName);
+
 protected:
-    void configureAudio();
     void disableAudio();
     void startAudio();
     void stopAudio();

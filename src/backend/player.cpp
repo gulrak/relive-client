@@ -62,7 +62,7 @@ void playStreamCallback(ma_device* pDevice, void* output, const void* /*input*/,
 void streamStoppedCallback(ma_device* pDevice)
 {
     auto* player = static_cast<relive::Player*>(pDevice->pUserData);
-
+    player->streamStopped();
 }
 }
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
@@ -92,6 +92,7 @@ struct Player::impl
     ghc::net::uri _source;
     std::shared_ptr<httplib::Client> _session;
     std::shared_ptr<Stream> _streamInfo;
+    std::string _currentDeviceName;
     int64_t _offset = 0;          // fetch offset in stream (bytes)
     int64_t _decodePosition = 0;  // decode offset in stream (bytes)
     int64_t _playPosition = 0;    // play offset in stream (sample frames)
@@ -113,7 +114,7 @@ struct Player::impl
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
     PaStream* _paStream;
 #endif
-    PlayerState _state;
+    std::atomic<PlayerState> _state;
     int _progress;
 
     impl(Player* player)
@@ -160,22 +161,23 @@ Player::Player()
         throw std::runtime_error(std::string("Couldn't initalize PortAudio: ") + Pa_GetErrorText(err));
     }
 #endif
-    configureAudio();
+    configureAudio(getDynamicDefaultOutputName());
 }
 
 Player::~Player()
 {
     {
         std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
-        disableAudio();
         _impl->_isRunning = false;
+        disableAudio();
     }
     _impl->_worker.join();
 }
 
-void Player::configureAudio()
+void Player::configureAudio(std::string deviceName)
 {
     static bool firstTime = true;
+    if(!_impl->_isRunning) return;
     DEBUG_LOG(1, "Configuring audio output...");
     if(firstTime) {
         firstTime = false;
@@ -183,6 +185,8 @@ void Player::configureAudio()
     else {
         disableAudio();
     }
+    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    _impl->_currentDeviceName = deviceName;
 #ifdef RELIVE_RTAUDIO_BACKEND
     RtAudio::StreamParameters parameters;
     parameters.deviceId = _impl->_dac.getDefaultOutputDevice();
@@ -202,18 +206,36 @@ void Player::configureAudio()
         ERROR_LOG(0, "Error while initializing miniaudio context: " << rc);
     }
     else {
-        ma_device_config config = ma_device_config_init(ma_device_type_playback);
-        config.playback.pDeviceID = nullptr;  // &pPlaybackInfos[chosenPlaybackDeviceIndex].id;
-        config.playback.format = ma_format_s16;
-        config.playback.channels = 2;
-        config.sampleRate = _impl->_frameRate;
-        config.dataCallback = &playStreamCallback;
-        config.pUserData = this;
-        if ((rc = ma_device_init(&_impl->_maContext, &config, &_impl->_maDevice)) != MA_SUCCESS) {
-            ERROR_LOG(0, "Error while initializing device: " << rc);
+        ma_device_info* pPlaybackInfos;
+        ma_uint32 playbackCount;
+        ma_device_info* pCaptureInfos;
+        ma_uint32 captureCount;
+        if (ma_context_get_devices(&_impl->_maContext, &pPlaybackInfos, &playbackCount, &pCaptureInfos, &captureCount) == MA_SUCCESS) {
+            for(int retry = 0; retry < 2; ++retry) {
+                for(size_t i = 0; i < playbackCount; ++i) {
+                    if ((pPlaybackInfos[i].isDefault && deviceName == getDynamicDefaultOutputName()) || deviceName == pPlaybackInfos[i].name) {
+                        ma_device_config config = ma_device_config_init(ma_device_type_playback);
+                        config.playback.pDeviceID = &pPlaybackInfos[i].id;  // &pPlaybackInfos[chosenPlaybackDeviceIndex].id;
+                        config.playback.format = ma_format_s16;
+                        config.playback.channels = 2;
+                        config.sampleRate = _impl->_frameRate;
+                        config.dataCallback = &playStreamCallback;
+                        config.stopCallback = &streamStoppedCallback;
+                        config.pUserData = this;
+                        if ((rc = ma_device_init(&_impl->_maContext, &config, &_impl->_maDevice)) != MA_SUCCESS) {
+                            ERROR_LOG(0, "Error while initializing device: " << rc);
+                        }
+                        else {
+                            DEBUG_LOG(1, "Configured audio device: " << _impl->_maDevice.playback.name);
+                            return;
+                        }
+                    }
+                }
+                deviceName = getDynamicDefaultOutputName();
+            }
         }
         else {
-            DEBUG_LOG(1, "Configured audio device: " << _impl->_maDevice.playback.name);
+            ERROR_LOG(0, "Couldn't enumaerate devices with miniaudio.");
         }
     }
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
@@ -249,6 +271,14 @@ void Player::disableAudio()
         _impl->_paStream = nullptr;
     }
 #endif
+}
+
+void Player::streamStopped()
+{
+    PlayerState state = ePLAYING;
+    if(_impl->_state.compare_exchange_strong(state, eERROR)) {
+        DEBUG_LOG(3, "Stream stopped...");
+    }
 }
 
 void Player::startAudio()
@@ -438,7 +468,24 @@ void Player::run()
 {
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(100ms);
+    auto lastDeviceCheck = std::chrono::steady_clock::now();
     while (_impl->_isRunning) {
+        auto now = std::chrono::steady_clock::now();
+        if(_impl->_state == eERROR) {
+            configureAudio(getDynamicDefaultOutputName());
+        }
+        if(now - lastDeviceCheck > std::chrono::milliseconds(1000)) {
+            lastDeviceCheck = now;
+            auto currentDefault = getCurrentDefaultOutputName();
+            bool changed = false;
+            {
+                std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+                changed = _impl->_currentDeviceName == getDynamicDefaultOutputName() && currentDefault != _impl->_maDevice.playback.name;
+            }
+            if(changed) {
+                configureAudio(getDynamicDefaultOutputName());
+            }
+        }
         if (_impl->_isPlaying) {
             if (_impl->_state != eENDOFSTREAM) {
                 if (_impl->_receiveBuffer.free() > _impl->_chunkSize) {
@@ -490,7 +537,7 @@ void Player::setSource(Mode mode, ghc::net::uri source, int64_t size)
         default:
             break;
     }
-    configureAudio();
+    configureAudio(_impl->_currentDeviceName);
 }
 
 void Player::setSource(const Stream& stream)
@@ -760,7 +807,7 @@ void Player::playMusic(unsigned char* buffer, int frames)
     auto start = std::chrono::steady_clock::now();
     auto* dst = (SampleType*)buffer;
     bool didDecode = false;
-    if (_impl->_state != eENDOFSTREAM) {
+    if (_impl->_state != eENDOFSTREAM && _impl->_state != eERROR) {
         if (!_impl->_receiveBuffer.filled()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(requestedTime / 2));
             //--std::clog << "Buffer after sleep: " << _impl->_receiveBuffer.filled() << " bytes" << std::endl;
@@ -810,6 +857,36 @@ void Player::playMusic(unsigned char* buffer, int frames)
     //--std::cout << "playMusic: " << std::chrono::duration_cast<std::chrono::microseconds>(dt).count() << "us, " << zeros << " frames silence" << std::endl;
 }
 
+std::string Player::getDynamicDefaultOutputName()
+{
+    return "[System Default]";
+}
+
+std::string Player::getCurrentDefaultOutputName() const
+{
+#if defined(RELIVE_MINIAUDIO_BACKEND)
+    ma_device_info* pPlaybackInfos;
+    ma_uint32 playbackCount;
+    ma_device_info* pCaptureInfos;
+    ma_uint32 captureCount;
+    std::string fallback;
+    if (ma_context_get_devices(&_impl->_maContext, &pPlaybackInfos, &playbackCount, &pCaptureInfos, &captureCount) == MA_SUCCESS) {
+        for (ma_uint32 iDevice = 0; iDevice < playbackCount; iDevice += 1) {
+            if(pPlaybackInfos[iDevice].isDefault) {
+                return pPlaybackInfos[iDevice].name;
+            }
+            if(fallback.empty() && pPlaybackInfos[iDevice].minChannels >= 2) {
+                fallback = pPlaybackInfos[iDevice].name;
+            }
+        }
+    }
+    else {
+        ERROR_LOG(0, "Couldn't enumaerate devices with miniaudio.");
+    }
+    return fallback;
+#endif
+}
+
 std::vector<Player::Device> Player::getOutputDevices()
 {
     std::vector<Device> result;
@@ -828,6 +905,7 @@ std::vector<Player::Device> Player::getOutputDevices()
     ma_uint32 playbackCount;
     ma_device_info* pCaptureInfos;
     ma_uint32 captureCount;
+    result.push_back(Device{getDynamicDefaultOutputName(), 2, 41000});
     if (ma_context_get_devices(&_impl->_maContext, &pPlaybackInfos, &playbackCount, &pCaptureInfos, &captureCount) == MA_SUCCESS) {
         for (ma_uint32 iDevice = 0; iDevice < playbackCount; iDevice += 1) {
             result.push_back(Device{pPlaybackInfos[iDevice].name, pPlaybackInfos[iDevice].maxChannels, pPlaybackInfos[iDevice].maxSampleRate});

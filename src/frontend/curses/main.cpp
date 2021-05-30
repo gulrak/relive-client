@@ -477,7 +477,7 @@ public:
     
     void drawPlayer()
     {
-        static const std::string states[] = { "Paused:", "Playing:", "End of:", "Ending: " };
+        static const std::string states[] = { "Paused:", "Playing:", "End of:", "Ending: ", "Error: " };
         if(validTerminal()) {
             print(1, height() - 5, std::string(width() - 2, ' '));
             print(1, height() - 4, std::string(width() - 2, ' '));
@@ -805,7 +805,7 @@ int main(int argc, char* argv[])
           // Loop over each device info and do something with it. Here we just print the name with their index. You may want
           // to give the user the opportunity to choose which device they'd prefer.
           for (ma_uint32 iDevice = 0; iDevice < playbackCount; iDevice += 1) {
-              printf("%d - [%s] %s\n", iDevice, pPlaybackInfos[iDevice].id.coreaudio, pPlaybackInfos[iDevice].name);
+              printf("%d - %s[%s] %s\n", iDevice, (pPlaybackInfos[iDevice].isDefault ? "*":" "), pPlaybackInfos[iDevice].id.coreaudio, pPlaybackInfos[iDevice].name);
           }
 #endif
             exit(0);

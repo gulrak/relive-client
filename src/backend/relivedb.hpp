@@ -22,6 +22,7 @@ struct Keys
     static std::string last_relive_sync;    // unix timestamp of the last sync with relive
     static std::string default_station;     // default station to switch to, start with stations view if unset or empty
     static std::string play_position;       // play position save point
+    static std::string output_device;       // device name of output device
 };
 
 class ReLiveDB

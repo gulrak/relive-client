@@ -435,6 +435,7 @@ public:
         addFontFromResourceTTF("Feather.ttf", FONT_SIZE, &icons_config, icons_ranges);
         _headerFont = addFontFromResourceTTF("DejaVuSans.ttf", HEADER_FONT_SIZE);
         _monoFont = io.Fonts->AddFontDefault();
+        _outputDevice.name = _rdb.getConfigValue(Keys::output_device, Player::getDynamicDefaultOutputName());
         fetchStations();
     }
 
@@ -1005,6 +1006,9 @@ public:
                 for (const auto& device : outputDevices) {
                     ImGui::PushID(device.name.c_str());
                     if(ImGui::Selectable(device.name.c_str(), _outputDevice.name == device.name)) {
+                        if(_outputDevice.name != device.name) {
+                            _player.configureAudio(device.name);
+                        }
                         _outputDevice = device;
                     }
                     ImGui::PopID();
@@ -1014,8 +1018,8 @@ public:
             ImGui::BeginChild("item view", ImVec2(0, -ImGui::GetTextLineHeightWithSpacing()));
             if (ImGui::Button("OK", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
             ImGui::SetItemDefaultFocus();
-            ImGui::SameLine();
-            if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
+            //ImGui::SameLine();
+            //if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
             ImGui::EndChild();
             ImGui::EndPopup();
         }
