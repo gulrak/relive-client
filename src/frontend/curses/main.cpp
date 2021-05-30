@@ -10,7 +10,11 @@
 #include <ghc/cui.hpp>
 #include <ghc/options.hpp>
 #include <version/version.hpp>
+#if defined(RELIVE_RTAUDIO_BACKEND)
 #include <RtAudio.h>
+#elif defined(RELIVE_MINIAUDIO_BACKEND)
+#include <mackron/miniaudio.h>
+#endif
 #include <atomic>
 #include <csignal>
 #include <iostream>
@@ -755,15 +759,15 @@ int main(int argc, char* argv[])
         }
 
         ghc::options parser(argc, argv);
-        parser.onOpt({"-?", "-h", "--help"}, "Output this help text", [&](std::string){
+        parser.onOpt({"-?", "-h", "--help"}, "Output this help text", [&](const std::string&){
             parser.usage(std::cout);
             exit(0);
         });
-        parser.onOpt({"-v", "--version"}, "Show program version and exit.", [&](std::string){
+        parser.onOpt({"-v", "--version"}, "Show program version and exit.", [&](const std::string&){
             std::cout << "reLiveCUI " << RELIVE_VERSION_STRING_LONG << std::endl;
             exit(0);
         });
-        parser.onOpt({"-l", "--list-devices"}, "Dump a list of found and supported output devices and exit.", [&](std::string){
+        parser.onOpt({"-l", "--list-devices"}, "Dump a list of found and supported output devices and exit.", [&](const std::string&){
 #ifdef RELIVE_RTAUDIO_BACKEND
             RtAudio audio;
             audio.showWarnings(false);
@@ -784,10 +788,29 @@ int main(int argc, char* argv[])
                     std::cout << rates << "]" << std::endl;
                 }
             }
+#elif defined(RELIVE_MINIAUDIO_BACKEND)
+          ma_context context;
+          if (ma_context_init(nullptr, 0, nullptr, &context) != MA_SUCCESS) {
+              // Error.
+          }
+
+          ma_device_info* pPlaybackInfos;
+          ma_uint32 playbackCount;
+          ma_device_info* pCaptureInfos;
+          ma_uint32 captureCount;
+          if (ma_context_get_devices(&context, &pPlaybackInfos, &playbackCount, &pCaptureInfos, &captureCount) != MA_SUCCESS) {
+              // Error.
+          }
+
+          // Loop over each device info and do something with it. Here we just print the name with their index. You may want
+          // to give the user the opportunity to choose which device they'd prefer.
+          for (ma_uint32 iDevice = 0; iDevice < playbackCount; iDevice += 1) {
+              printf("%d - [%s] %s\n", iDevice, pPlaybackInfos[iDevice].id.coreaudio, pPlaybackInfos[iDevice].name);
+          }
 #endif
             exit(0);
         });
-        parser.onOpt({"-s?", "--default-station?"}, "[<name>]\tSet the default station to switch to on startup, only significant part of the name is needed. Without a parameter, this resets to starting on station screen.", [&](std::string str){
+        parser.onOpt({"-s?", "--default-station?"}, "[<name>]\tSet the default station to switch to on startup, only significant part of the name is needed. Without a parameter, this resets to starting on station screen.", [&](const std::string& str){
             ReLiveDB db;
             if(str.empty()) {
                 db.setConfigValue(Keys::default_station, "");

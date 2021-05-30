@@ -17,6 +17,15 @@ namespace fs = ghc::filesystem;
 
 #ifdef RELIVE_RTAUDIO_BACKEND
 #include <RtAudio.h>
+#elif defined(RELIVE_MINIAUDIO_BACKEND)
+#ifdef __APPLE__
+#define MA_NO_RUNTIME_LINKING
+#endif
+#define MA_NO_WAV
+#define MA_NO_MP3
+#define MA_NO_FLAC
+#define MINIAUDIO_IMPLEMENTATION
+#include <mackron/miniaudio.h>
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
 #include <portaudio.h>
 #else
@@ -38,17 +47,29 @@ namespace fs = ghc::filesystem;
 #ifdef RELIVE_RTAUDIO_BACKEND
 int playStreamCallback(void* output, void* /*input*/, unsigned int frameCount, double /*streamTime*/, RtAudioStreamStatus /*status*/, void* userData)
 {
-    relive::Player* player = static_cast<relive::Player*>(userData);
+    auto* player = static_cast<relive::Player*>(userData);
     player->playMusic((unsigned char*)output, frameCount);
     return 0;
 }
-#endif
+#elif defined(RELIVE_MINIAUDIO_BACKEND)
+extern "C" {
+void playStreamCallback(ma_device* pDevice, void* output, const void* /*input*/, ma_uint32 frameCount)
+{
+    auto* player = static_cast<relive::Player*>(pDevice->pUserData);
+    player->playMusic((unsigned char*)output, static_cast<int>(frameCount));
+}
 
-#ifdef RELIVE_PORTAUDIO_BACKEND
+void streamStoppedCallback(ma_device* pDevice)
+{
+    auto* player = static_cast<relive::Player*>(pDevice->pUserData);
+
+}
+}
+#elif defined(RELIVE_PORTAUDIO_BACKEND)
 extern "C" {
 int playStreamCallback(const void* /*input*/, void* output, unsigned long frameCount, const PaStreamCallbackTimeInfo* /*timeInfo*/, PaStreamCallbackFlags /*statusFlags*/, void* userData)
 {
-    Player* player = static_cast<Player*>(userData);
+    auto* player = static_cast<relive::Player*>(userData);
     player->playMusic((unsigned char*)output, frameCount);
     //std::clog << "callback" << std::endl;
     return 0;
@@ -86,6 +107,9 @@ struct Player::impl
     mp3dec_frame_info_t _mp3info;
 #ifdef RELIVE_RTAUDIO_BACKEND
     RtAudio _dac;
+#elif defined(RELIVE_MINIAUDIO_BACKEND)
+    ma_context _maContext;
+    ma_device _maDevice;
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
     PaStream* _paStream;
 #endif
@@ -165,6 +189,20 @@ void Player::configureAudio()
     catch (RtAudioError& e) {
         ERROR_LOG(0, "Error while initializing audio: " << e.getMessage());
     }
+#elif defined(RELIVE_MINIAUDIO_BACKEND)
+    if (ma_context_init(NULL, 0, NULL, &_impl->_maContext) != MA_SUCCESS) {
+        ERROR_LOG(0, "Error while initializing miniaudio context");
+    }
+    ma_device_config config = ma_device_config_init(ma_device_type_playback);
+    config.playback.pDeviceID = nullptr; // &pPlaybackInfos[chosenPlaybackDeviceIndex].id;
+    config.playback.format    = ma_format_s16;
+    config.playback.channels  = 2;
+    config.sampleRate         = _impl->_frameRate;
+    config.dataCallback       = &playStreamCallback;
+    config.pUserData          = this;
+    if (ma_device_init(&_impl->_maContext, &config, &_impl->_maDevice) != MA_SUCCESS) {
+        ERROR_LOG(0, "Error while initializing device");
+    }
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
     PaStreamParameters param;
     param.channelCount = _impl->_numChannels;
@@ -188,6 +226,9 @@ void Player::disableAudio()
     if (_impl->_dac.isStreamOpen()) {
         _impl->_dac.closeStream();
     }
+#elif defined(RELIVE_MINIAUDIO_BACKEND)
+    ma_device_uninit(&_impl->_maDevice);
+    ma_context_uninit(&_impl->_maContext);
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
     if (_impl->_paStream) {
         Pa_CloseStream(_impl->_paStream);
@@ -204,6 +245,10 @@ void Player::startAudio()
     }
     catch (RtAudioError& e) {
         ERROR_LOG(0, "Error while initializing audio: " << e.getMessage());
+    }
+#elif defined(RELIVE_MINIAUDIO_BACKEND)
+    if(ma_device_start(&_impl->_maDevice) != MA_SUCCESS) {
+        ERROR_LOG(0, "Error starting miniaudio device.");
     }
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
     auto rc = Pa_StartStream(_impl->_paStream);
@@ -222,6 +267,10 @@ void Player::stopAudio()
     }
     catch (RtAudioError& e) {
         ERROR_LOG(0, "Error while stopping audio: " << e.getMessage());
+    }
+#elif defined(RELIVE_MINIAUDIO_BACKEND)
+    if(ma_device_stop(&_impl->_maDevice) != MA_SUCCESS) {
+        ERROR_LOG(0, "Error stopping miniaudio device.");
     }
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
     if (_impl->_paStream) {
@@ -242,6 +291,8 @@ void Player::abortAudio()
     catch (RtAudioError& e) {
         ERROR_LOG(0, "Error while stopping audio: " << e.getMessage());
     }
+#elif defined(RELIVE_MINIAUDIO_BACKEND)
+    stopAudio();
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
     if (_impl->_paStream) {
         // Pa_StopStream(_impl->_paStream);
@@ -451,7 +502,7 @@ void Player::setSource(const Track& track)
             auto tt = track._time > 0 ? (double)track._time - 0.05 : (double)track._time;
             _impl->_offset = (int64_t)(track._stream->_size * (tt / track._stream->_duration));
             _impl->_decodePosition = _impl->_offset;
-            _impl->_playPosition = ((double)track._stream->_duration * _impl->_offset / track._stream->_size + 0.1) * _impl->_frameRate;
+            _impl->_playPosition = static_cast<int64_t>(((double)track._stream->_duration * _impl->_offset / track._stream->_size + 0.1) * _impl->_frameRate);
             DEBUG_LOG(1, "New play position: " << _impl->_offset << "/" << _impl->_playPosition);
         }
     }
@@ -755,6 +806,20 @@ std::vector<Player::Device> Player::getOutputDevices()
         if (info.probed && info.outputChannels >= 2) {
             result.push_back(Device{info.name, info.outputChannels, info.preferredSampleRate});
         }
+    }
+#elif defined(RELIVE_MINIAUDIO_BACKEND)
+    ma_device_info* pPlaybackInfos;
+    ma_uint32 playbackCount;
+    ma_device_info* pCaptureInfos;
+    ma_uint32 captureCount;
+    if (ma_context_get_devices(&_impl->_maContext, &pPlaybackInfos, &playbackCount, &pCaptureInfos, &captureCount) == MA_SUCCESS) {
+        for (ma_uint32 iDevice = 0; iDevice < playbackCount; iDevice += 1) {
+            result.push_back(Device{pPlaybackInfos[iDevice].name, pPlaybackInfos[iDevice].maxChannels, pPlaybackInfos[iDevice].maxSampleRate});
+            //printf("%d - [%s] %s\n", iDevice, pPlaybackInfos[iDevice].id.coreaudio, pPlaybackInfos[iDevice].name);
+        }
+    }
+    else {
+        ERROR_LOG(0, "Couldn't enumaerate devices with miniaudio.");
     }
 #endif
     return result;
