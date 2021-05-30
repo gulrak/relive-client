@@ -1366,7 +1366,7 @@ int main(int argc, char* argv[])
     try {
         setAppName(RELIVE_APP_NAME);
         LogManager::setOutputFile(relive::dataPath() + "/" + appName() + ".log");
-        LogManager::instance()->defaultLevel(4);
+        LogManager::instance()->defaultLevel(3);
         if(isInstanceRunning()) {
             throw std::runtime_error("Instance already running.");
         }

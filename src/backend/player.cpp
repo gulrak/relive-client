@@ -175,7 +175,14 @@ Player::~Player()
 
 void Player::configureAudio()
 {
-    disableAudio();
+    static bool firstTime = true;
+    DEBUG_LOG(1, "Configuring audio output...");
+    if(firstTime) {
+        firstTime = false;
+    }
+    else {
+        disableAudio();
+    }
 #ifdef RELIVE_RTAUDIO_BACKEND
     RtAudio::StreamParameters parameters;
     parameters.deviceId = _impl->_dac.getDefaultOutputDevice();
@@ -190,18 +197,24 @@ void Player::configureAudio()
         ERROR_LOG(0, "Error while initializing audio: " << e.getMessage());
     }
 #elif defined(RELIVE_MINIAUDIO_BACKEND)
-    if (ma_context_init(NULL, 0, NULL, &_impl->_maContext) != MA_SUCCESS) {
-        ERROR_LOG(0, "Error while initializing miniaudio context");
+    ma_result rc = 0;
+    if ((rc = ma_context_init(NULL, 0, NULL, &_impl->_maContext)) != MA_SUCCESS) {
+        ERROR_LOG(0, "Error while initializing miniaudio context: " << rc);
     }
-    ma_device_config config = ma_device_config_init(ma_device_type_playback);
-    config.playback.pDeviceID = nullptr; // &pPlaybackInfos[chosenPlaybackDeviceIndex].id;
-    config.playback.format    = ma_format_s16;
-    config.playback.channels  = 2;
-    config.sampleRate         = _impl->_frameRate;
-    config.dataCallback       = &playStreamCallback;
-    config.pUserData          = this;
-    if (ma_device_init(&_impl->_maContext, &config, &_impl->_maDevice) != MA_SUCCESS) {
-        ERROR_LOG(0, "Error while initializing device");
+    else {
+        ma_device_config config = ma_device_config_init(ma_device_type_playback);
+        config.playback.pDeviceID = nullptr;  // &pPlaybackInfos[chosenPlaybackDeviceIndex].id;
+        config.playback.format = ma_format_s16;
+        config.playback.channels = 2;
+        config.sampleRate = _impl->_frameRate;
+        config.dataCallback = &playStreamCallback;
+        config.pUserData = this;
+        if ((rc = ma_device_init(&_impl->_maContext, &config, &_impl->_maDevice)) != MA_SUCCESS) {
+            ERROR_LOG(0, "Error while initializing device: " << rc);
+        }
+        else {
+            DEBUG_LOG(1, "Configured audio device: " << _impl->_maDevice.playback.name);
+        }
     }
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
     PaStreamParameters param;
@@ -219,6 +232,7 @@ void Player::configureAudio()
 
 void Player::disableAudio()
 {
+    DEBUG_LOG(1, "Disabling audio output");
     _impl->_isPlaying = false;
     _impl->_state = ePAUSED;
     stopAudio();
@@ -269,8 +283,10 @@ void Player::stopAudio()
         ERROR_LOG(0, "Error while stopping audio: " << e.getMessage());
     }
 #elif defined(RELIVE_MINIAUDIO_BACKEND)
-    if(ma_device_stop(&_impl->_maDevice) != MA_SUCCESS) {
-        ERROR_LOG(0, "Error stopping miniaudio device.");
+    if(_impl->_maDevice.state != MA_STATE_STOPPED) {
+        if (ma_device_stop(&_impl->_maDevice) != MA_SUCCESS) {
+            ERROR_LOG(0, "Error stopping miniaudio device.");
+        }
     }
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
     if (_impl->_paStream) {
@@ -447,7 +463,7 @@ void Player::run()
 void Player::setSource(Mode mode, ghc::net::uri source, int64_t size)
 {
     std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
-    disableAudio();
+    abortAudio();
     _impl->_mode = mode;
     _impl->_source = source;
     _impl->_offset = 0;
