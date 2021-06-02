@@ -948,6 +948,9 @@ public:
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1);
         ImGui::Begin("Main Window", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
+        //-----------------------------------------------------------------------------------------
+        // MENU ROOT
+        //-----------------------------------------------------------------------------------------
         ImGui::SetCursorPos(ImVec2(8, 10.0f));
         ImGui::Text(ICON_FTH_MORE_VERTICAL);
         if(ImGui::IsItemClicked()) {
@@ -970,6 +973,9 @@ public:
             ImGui::EndPopup();
         }
 
+        //-----------------------------------------------------------------------------------------
+        // ABOUT DIALOG
+        //-----------------------------------------------------------------------------------------
         if(openAboutDialog) {
             ImGui::OpenPopup("About reLiveG");
         }
@@ -990,6 +996,9 @@ public:
             ImGui::EndPopup();
         }
 
+        //-----------------------------------------------------------------------------------------
+        // SETTINGS DIALOG
+        //-----------------------------------------------------------------------------------------
         static std::vector<Player::Device> outputDevices;
         if(openSettings) {
             ImGui::OpenPopup("reLiveG Settings");
@@ -1024,6 +1033,9 @@ public:
             ImGui::EndPopup();
         }
 
+        //-----------------------------------------------------------------------------------------
+        // MAIN TABS
+        //-----------------------------------------------------------------------------------------
         ImGui::PushFont(_headerFont);
         static const std::vector<std::string> menuLabels = {
             "Stations", "Streams", "Tracks", "Chat"
@@ -1058,6 +1070,9 @@ public:
         ImGui::EndGroup();
         ImGui::PopFont();
 
+        //-----------------------------------------------------------------------------------------
+        // SEARCH BAR
+        //-----------------------------------------------------------------------------------------
         ImGui::SetCursorPos(ImVec2(_width - 200, 20.0f));
         ImGui::SetNextItemWidth(170);
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12);
@@ -1068,10 +1083,10 @@ public:
             }
         }
         ImGui::PopStyleVar(2);
-
-
-        //-----------------------------------------------------------------
         {
+            //-----------------------------------------------------------------------------------------
+            // SEARCH RESULTS
+            //-----------------------------------------------------------------------------------------
             auto id = ImGui::GetItemID();
             static bool isOpen = false;
             static std::vector<ReLiveDB::FindTracksInfo> foundTracks;
@@ -1384,27 +1399,11 @@ int main(int argc, char* argv[])
           exit(0);
         });
         parser.onOpt({"-l", "--list-devices"}, "Dump a list of found and supported output devices and exit.", [&](const std::string&){
-#ifdef RELIVE_RTAUDIO_BACKEND
-          RtAudio audio;
-          audio.showWarnings(false);
-          unsigned int devices = audio.getDeviceCount();
-          RtAudio::DeviceInfo info;
-          for(unsigned int i=0; i<devices; ++i) {
-              info = audio.getDeviceInfo( i );
-              if(info.probed && info.outputChannels >= 2) {
-                  std::cout << "'" << info.name << "', ";
-                  std::cout << " maximum output channels = " << info.outputChannels << ", [";
-                  std::string rates;
-                  for(auto rate : info.sampleRates) {
-                      if(!rates.empty()) {
-                          rates += ", ";
-                      }
-                      rates += std::to_string(rate) + "Hz";
-                  }
-                  std::cout << rates << "]" << std::endl;
-              }
+          Player p;
+          auto devices = p.getOutputDevices();
+          for(const auto& device : devices) {
+              std::cout << device.name << std::endl;
           }
-#endif
           exit(0);
         });
         parser.onOpt({"-s?", "--default-station?"}, "[<name>]\tSet the default station to switch to on startup, only significant part of the name is needed. Without a parameter, this resets to starting on station screen.", [&](std::string str){
