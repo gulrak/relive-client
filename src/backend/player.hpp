@@ -41,6 +41,8 @@ public:
     void next();
     int volume() const;
     void volume(int vol);
+    float receiveBufferQuote() const;
+    float decodeBufferQuote() const;
     
     bool hasSource() const;
     void setSource(Mode mode, ghc::net::uri source, int64_t size = 0);

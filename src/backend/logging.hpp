@@ -13,6 +13,8 @@
 #include <sstream>
 #include <thread>
 
+#include <tracy/TracyWrapper.hpp>
+
 namespace relive {
 
 enum class LogType { eError, eWarning, eInfo, eDebug };

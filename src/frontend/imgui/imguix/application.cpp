@@ -31,6 +31,9 @@ using namespace gl;
 #include <thread>
 #include <iostream>
 
+#include <tracy/TracyWrapper.hpp>
+
+
 using namespace ImGui;
 
 
@@ -214,6 +217,7 @@ void Application::teardown()
 
 void Application::render()
 {
+    ZoneScopedN("App::render");
     ImVec4 clear_color = ImGui::ColorConvertU32ToFloat4(_clearColor);
     auto start = std::chrono::steady_clock::now();
 
@@ -276,7 +280,7 @@ void Application::run()
 
     // Main loop
     while (!glfwWindowShouldClose(_impl->window)) {
-
+        FrameMark;
         // Poll and handle events (inputs, window resize, etc.)
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
         // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.

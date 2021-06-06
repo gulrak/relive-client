@@ -115,6 +115,8 @@ struct Player::impl
     PaStream* _paStream;
 #endif
     std::atomic<PlayerState> _state;
+    enum BackendState { eUninitialized, eInitialized, eReadyForPlayback };
+    std::atomic<BackendState> _backendState;
     int _progress;
 
     impl(Player* player)
@@ -130,13 +132,14 @@ struct Player::impl
         , _numChannels(2)
         , _volume(75)
         , _receiveBuffer(1024 * 1024)
-        , _sampleBuffer(256 * 1024)
+        , _sampleBuffer(16 * 1024)
         , _chunk(_chunkSize)
 #ifdef RELIVE_PORTAUDIO_BACKEND
         , _paStream(nullptr)
 #endif
         , _state(ePAUSED)
         , _progress(0)
+        , _backendState(eUninitialized)
     {
         mp3dec_init(&_mp3d);
     }
@@ -161,31 +164,40 @@ Player::Player()
         throw std::runtime_error(std::string("Couldn't initalize PortAudio: ") + Pa_GetErrorText(err));
     }
 #endif
+#ifdef RELIVE_MINIAUDIO_BACKEND
+    ma_result rc = 0;
+    if ((rc = ma_context_init(NULL, 0, NULL, &_impl->_maContext)) != MA_SUCCESS) {
+        ERROR_LOG(0, "Error while initializing miniaudio context: " << rc);
+    }
+    else {
+        _impl->_backendState = impl::eInitialized;
+    }
+#endif
     configureAudio(getDynamicDefaultOutputName());
 }
 
 Player::~Player()
 {
-    {
-        std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
-        _impl->_isRunning = false;
-        disableAudio();
-    }
+    _impl->_isRunning = false;
     _impl->_worker.join();
+    disableAudio();
+#ifdef RELIVE_MINIAUDIO_BACKEND
+    ma_context_uninit(&_impl->_maContext);
+#endif
 }
 
 void Player::configureAudio(std::string deviceName)
 {
     static bool firstTime = true;
-    if(!_impl->_isRunning) return;
+    if(!_impl->_isRunning || _impl->_backendState == impl::eUninitialized) return;
     DEBUG_LOG(1, "Configuring audio output...");
+    std::scoped_lock lock{_impl->_mutex};
     if(firstTime) {
         firstTime = false;
     }
     else {
         disableAudio();
     }
-    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
     _impl->_currentDeviceName = deviceName;
 #ifdef RELIVE_RTAUDIO_BACKEND
     RtAudio::StreamParameters parameters;
@@ -202,41 +214,39 @@ void Player::configureAudio(std::string deviceName)
     }
 #elif defined(RELIVE_MINIAUDIO_BACKEND)
     ma_result rc = 0;
-    if ((rc = ma_context_init(NULL, 0, NULL, &_impl->_maContext)) != MA_SUCCESS) {
-        ERROR_LOG(0, "Error while initializing miniaudio context: " << rc);
-    }
-    else {
-        ma_device_info* pPlaybackInfos;
-        ma_uint32 playbackCount;
-        ma_device_info* pCaptureInfos;
-        ma_uint32 captureCount;
-        if (ma_context_get_devices(&_impl->_maContext, &pPlaybackInfos, &playbackCount, &pCaptureInfos, &captureCount) == MA_SUCCESS) {
-            for(int retry = 0; retry < 2; ++retry) {
-                for(size_t i = 0; i < playbackCount; ++i) {
-                    if ((pPlaybackInfos[i].isDefault && deviceName == getDynamicDefaultOutputName()) || deviceName == pPlaybackInfos[i].name) {
-                        ma_device_config config = ma_device_config_init(ma_device_type_playback);
-                        config.playback.pDeviceID = &pPlaybackInfos[i].id;  // &pPlaybackInfos[chosenPlaybackDeviceIndex].id;
-                        config.playback.format = ma_format_s16;
-                        config.playback.channels = 2;
-                        config.sampleRate = _impl->_frameRate;
-                        config.dataCallback = &playStreamCallback;
-                        config.stopCallback = &streamStoppedCallback;
-                        config.pUserData = this;
-                        if ((rc = ma_device_init(&_impl->_maContext, &config, &_impl->_maDevice)) != MA_SUCCESS) {
-                            ERROR_LOG(0, "Error while initializing device: " << rc);
-                        }
-                        else {
-                            DEBUG_LOG(1, "Configured audio device: " << _impl->_maDevice.playback.name);
-                            return;
-                        }
+    ma_device_info* pPlaybackInfos;
+    ma_uint32 playbackCount;
+    ma_device_info* pCaptureInfos;
+    ma_uint32 captureCount;
+    if (ma_context_get_devices(&_impl->_maContext, &pPlaybackInfos, &playbackCount, &pCaptureInfos, &captureCount) == MA_SUCCESS) {
+        for(int retry = 0; retry < 2; ++retry) {
+            for(size_t i = 0; i < playbackCount; ++i) {
+                if ((pPlaybackInfos[i].isDefault && deviceName == getDynamicDefaultOutputName()) || deviceName == pPlaybackInfos[i].name) {
+                    ma_device_config config = ma_device_config_init(ma_device_type_playback);
+                    config.playback.pDeviceID = &pPlaybackInfos[i].id;  // &pPlaybackInfos[chosenPlaybackDeviceIndex].id;
+                    config.playback.format = ma_format_s16;
+                    config.playback.channels = 2;
+                    config.sampleRate = _impl->_frameRate;
+                    config.dataCallback = &playStreamCallback;
+                    config.stopCallback = &streamStoppedCallback;
+                    config.pUserData = this;
+                    if ((rc = ma_device_init(&_impl->_maContext, &config, &_impl->_maDevice)) != MA_SUCCESS) {
+                        ERROR_LOG(0, "Error while initializing device: " << rc);
+                        _impl->_backendState = impl::eInitialized;
+                    }
+                    else {
+                        DEBUG_LOG(1, "Configured audio device: " << _impl->_maDevice.playback.name);
+                        _impl->_backendState = impl::eReadyForPlayback;
+                        return;
                     }
                 }
-                deviceName = getDynamicDefaultOutputName();
             }
+            deviceName = getDynamicDefaultOutputName();
         }
-        else {
-            ERROR_LOG(0, "Couldn't enumaerate devices with miniaudio.");
-        }
+    }
+    else {
+        ERROR_LOG(0, "Couldn't enumaerate devices with miniaudio.");
+        _impl->_backendState = impl::eInitialized;
     }
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
     PaStreamParameters param;
@@ -263,8 +273,8 @@ void Player::disableAudio()
         _impl->_dac.closeStream();
     }
 #elif defined(RELIVE_MINIAUDIO_BACKEND)
+    std::scoped_lock lock{_impl->_mutex};
     ma_device_uninit(&_impl->_maDevice);
-    ma_context_uninit(&_impl->_maContext);
 #elif defined(RELIVE_PORTAUDIO_BACKEND)
     if (_impl->_paStream) {
         Pa_CloseStream(_impl->_paStream);
@@ -291,6 +301,7 @@ void Player::startAudio()
         ERROR_LOG(0, "Error while initializing audio: " << e.getMessage());
     }
 #elif defined(RELIVE_MINIAUDIO_BACKEND)
+    std::scoped_lock lock{_impl->_mutex};
     if(ma_device_start(&_impl->_maDevice) != MA_SUCCESS) {
         ERROR_LOG(0, "Error starting miniaudio device.");
     }
@@ -313,6 +324,7 @@ void Player::stopAudio()
         ERROR_LOG(0, "Error while stopping audio: " << e.getMessage());
     }
 #elif defined(RELIVE_MINIAUDIO_BACKEND)
+    std::scoped_lock lock{_impl->_mutex};
     if(_impl->_maDevice.state != MA_STATE_STOPPED) {
         if (ma_device_stop(&_impl->_maDevice) != MA_SUCCESS) {
             ERROR_LOG(0, "Error stopping miniaudio device.");
@@ -353,13 +365,13 @@ void Player::play()
     if (hasSource()) {
         PlayerState state;
         {
-            std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+            std::scoped_lock lock{_impl->_mutex};
             state = _impl->_state;
         }
         if (state == eENDOFSTREAM) {
             seekTo(0);
         }
-        std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+        std::scoped_lock lock{_impl->_mutex};
         _impl->_isPlaying = true;
         _impl->_state = ePLAYING;
         startAudio();
@@ -369,7 +381,7 @@ void Player::play()
 void Player::pause()
 {
     // std::cout << "begin pause" << std::endl;
-    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    std::scoped_lock lock{_impl->_mutex};
     _impl->_isPlaying = false;
     _impl->_state = ePAUSED;
     stopAudio();
@@ -378,25 +390,25 @@ void Player::pause()
 
 PlayerState Player::state() const
 {
-    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    std::scoped_lock lock{_impl->_mutex};
     return _impl->_state;
 }
 
 bool Player::hasSource() const
 {
-    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    std::scoped_lock lock{_impl->_mutex};
     return !_impl->_source.empty();
 }
 
 int Player::playTime() const
 {
-    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    std::scoped_lock lock{_impl->_mutex};
     return int(_impl->_playPosition / _impl->_frameRate);
 }
 
 void Player::seekTo(int seconds, bool startPlay)
 {
-    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    std::scoped_lock lock{_impl->_mutex};
     abortAudio();
     if (_impl->_streamInfo) {
         auto tt = seconds > 0 ? (double)seconds - 0.05 : (double)seconds;
@@ -411,9 +423,19 @@ void Player::seekTo(int seconds, bool startPlay)
     }
 }
 
+float Player::receiveBufferQuote() const
+{
+    return float(_impl->_receiveBuffer.filled()) / _impl->_receiveBuffer.bufferSize();
+}
+
+float Player::decodeBufferQuote() const
+{
+    return float(_impl->_sampleBuffer.filled()) / _impl->_sampleBuffer.bufferSize();
+}
+
 void Player::prev()
 {
-    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    std::scoped_lock lock{_impl->_mutex};
     if (_impl->_streamInfo) {
         const Track* prevTrack = nullptr;
         auto currentTime = playTime();
@@ -433,7 +455,7 @@ void Player::prev()
 
 void Player::next()
 {
-    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    std::scoped_lock lock{_impl->_mutex};
     if (_impl->_streamInfo) {
         int64_t nextPos = 0;
         auto currentTime = playTime();
@@ -448,13 +470,13 @@ void Player::next()
 
 int Player::volume() const
 {
-    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    std::scoped_lock lock{_impl->_mutex};
     return _impl->_volume;
 }
 
 void Player::volume(int vol)
 {
-    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    std::scoped_lock lock{_impl->_mutex};
     if (vol < 0) {
         vol = 0;
     }
@@ -466,6 +488,9 @@ void Player::volume(int vol)
 
 void Player::run()
 {
+#ifdef TRACY_ENABLED
+    tracy::SetThreadName("Player");
+#endif
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(100ms);
     auto lastDeviceCheck = std::chrono::steady_clock::now();
@@ -479,7 +504,7 @@ void Player::run()
             auto currentDefault = getCurrentDefaultOutputName();
             bool changed = false;
             {
-                std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+                std::scoped_lock lock{_impl->_mutex};
                 changed = _impl->_currentDeviceName == getDynamicDefaultOutputName() && currentDefault != _impl->_maDevice.playback.name;
             }
             if(changed) {
@@ -490,11 +515,15 @@ void Player::run()
             if (_impl->_state != eENDOFSTREAM) {
                 if (_impl->_receiveBuffer.free() > _impl->_chunkSize) {
                     if (!fillBuffer()) {
-                        std::this_thread::sleep_for(1000ms);
+                        std::this_thread::sleep_for(500ms);
                     }
                 }
                 else {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(_impl->_receiveBuffer.filled() * 100 / _impl->_receiveBuffer.bufferSize() > 66 ? 250 : 100));
+                    if (_impl->_sampleBuffer.free() > 4096 && _impl->_receiveBuffer.filled()) {
+                        decodeFrame();
+                    } else {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(_impl->_receiveBuffer.filled() * 100 / _impl->_receiveBuffer.bufferSize() > 66 ? 250 : 100));
+                    }
                 }
             }
             else {
@@ -509,7 +538,7 @@ void Player::run()
 
 void Player::setSource(Mode mode, ghc::net::uri source, int64_t size)
 {
-    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    std::scoped_lock lock{_impl->_mutex};
     abortAudio();
     _impl->_mode = mode;
     _impl->_source = source;
@@ -550,7 +579,7 @@ void Player::setSource(const Stream& stream)
         api.path(api.path() + "getmediadata/?v=11&streamid=" + std::to_string(stream._reliveId));
         setSource(eReLiveStream, api, stream._size);
         {
-            std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+            std::scoped_lock lock{_impl->_mutex};
             _impl->_streamInfo = std::make_shared<Stream>(stream);
         }
     }
@@ -561,7 +590,7 @@ void Player::setSource(const Track& track)
     if (track._stream && track._stream->_station && !track._stream->_station->_api.empty()) {
         setSource(*track._stream);
         {
-            std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+            std::scoped_lock lock{_impl->_mutex};
             auto tt = track._time > 0 ? (double)track._time - 0.05 : (double)track._time;
             _impl->_offset = (int64_t)(track._stream->_size * (tt / track._stream->_duration));
             _impl->_decodePosition = _impl->_offset;
@@ -573,12 +602,13 @@ void Player::setSource(const Track& track)
 
 std::shared_ptr<Stream> Player::currentStream()
 {
-    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    std::scoped_lock lock{_impl->_mutex};
     return _impl->_streamInfo;
 }
 
 bool Player::fillBuffer()
 {
+    ZoneScopedN("fillBuffer");
     switch (_impl->_mode) {
         case eNone:
             break;
@@ -586,7 +616,7 @@ bool Player::fillBuffer()
             fs::path file;
             int64_t offset;
             {
-                std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+                std::scoped_lock lock{_impl->_mutex};
                 file = _impl->_source.request_path();
                 offset = _impl->_offset;
             }
@@ -595,7 +625,7 @@ bool Player::fillBuffer()
                 if (is.seekg(offset)) {
                     is.read(_impl->_chunk.data(), _impl->_chunkSize);
                     if (is.gcount()) {
-                        std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+                        std::scoped_lock lock{_impl->_mutex};
                         if (_impl->_offset == offset) {
                             // add only if we have not changed offset due to seek/pause/change of stream
                             _impl->_receiveBuffer.push(_impl->_chunk.data(), is.gcount());
@@ -613,7 +643,7 @@ bool Player::fillBuffer()
             int64_t offset;
             std::string range;
             {
-                std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+                std::scoped_lock lock{_impl->_mutex};
                 offset = _impl->_offset;
                 fetchSize = _impl->_size > offset ? (std::min)(_impl->_size - offset, static_cast<int64_t>(_impl->_chunkSize)) : 0;
                 range = "&start=" + std::to_string(offset) + "&length=" + std::to_string(fetchSize);
@@ -625,7 +655,7 @@ bool Player::fillBuffer()
                 if (res && res->status == 200) {
                     DEBUG_LOG(3, "reLiveStream: About to push " << res->body.size() << " bytes, (buffer has " << _impl->_receiveBuffer.free() << " bytes free)");
                     {
-                        std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+                        std::scoped_lock lock{_impl->_mutex};
                         if (_impl->_offset == offset) {
                             // add only if we have not changed offset due to seek/pause/change of stream
                             _impl->_receiveBuffer.push(res->body.data(), res->body.size());
@@ -768,6 +798,7 @@ void Player::streamSCast()
 
 void Player::decodeFrame()
 {
+    ZoneScopedN("decodeFrame");
     // std::clog << "decode..." << std::endl;
     if (_impl->_receiveBuffer.canPull(200) && _impl->_sampleBuffer.free() >= MINIMP3_MAX_SAMPLES_PER_FRAME) {
         // std::clog << "decode... (" << _impl->_receiveBuffer.filled() << " available)" << std::endl;
@@ -802,6 +833,7 @@ void Player::decodeFrame()
 
 void Player::playMusic(unsigned char* buffer, int frames)
 {
+    FrameMarkStart("playMusic");
     auto requestedTime = frames * 1000 / _impl->_frameRate;
     //--std::clog << "play " << frames << " (~" << requestedTime << "ms), sample buffer contains " << (_impl->_sampleBuffer.filled() / _impl->_numChannels) << std::endl;
     auto start = std::chrono::steady_clock::now();
@@ -853,6 +885,7 @@ void Player::playMusic(unsigned char* buffer, int frames)
             }
         }
     }
+    FrameMarkEnd("playMusic");
     //--auto dt = std::chrono::steady_clock::now() - start;
     //--std::cout << "playMusic: " << std::chrono::duration_cast<std::chrono::microseconds>(dt).count() << "us, " << zeros << " frames silence" << std::endl;
 }
@@ -864,6 +897,7 @@ std::string Player::getDynamicDefaultOutputName()
 
 std::string Player::getCurrentDefaultOutputName() const
 {
+    ZoneScopedN("getCurrentDefaultOutputName");
 #if defined(RELIVE_MINIAUDIO_BACKEND)
     ma_device_info* pPlaybackInfos;
     ma_uint32 playbackCount;
@@ -890,7 +924,7 @@ std::string Player::getCurrentDefaultOutputName() const
 std::vector<Player::Device> Player::getOutputDevices()
 {
     std::vector<Device> result;
-    std::lock_guard<std::recursive_mutex> lock{_impl->_mutex};
+    std::scoped_lock lock{_impl->_mutex};
 #ifdef RELIVE_RTAUDIO_BACKEND
     unsigned int devices = _impl->_dac.getDeviceCount();
     RtAudio::DeviceInfo info;
