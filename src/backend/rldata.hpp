@@ -1,44 +1,19 @@
 //---------------------------------------------------------------------------------------
-//
-// relivedb - A C++ implementation of the reLive protocoll and an sqlite backend
-//
-//---------------------------------------------------------------------------------------
-//
+// SPDX-License-Identifier: BSD-3-Clause
+// relive-client - A C++ implementation of the reLive protocol and an sqlite backend
 // Copyright (c) 2019, Steffen Schümann <s.schuemann@pobox.com>
-// All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without modification,
-// are permitted provided that the following conditions are met:
-//
-// 1. Redistributions of source code must retain the above copyright notice, this
-//    list of conditions and the following disclaimer.
-//
-// 2. Redistributions in binary form must reproduce the above copyright notice,
-//    this list of conditions and the following disclaimer in the documentation
-//    and/or other materials provided with the distribution.
-//
-// 3. Neither the name of the copyright holder nor the names of its contributors
-//    may be used to endorse or promote products derived from this software without
-//    specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 //---------------------------------------------------------------------------------------
 #pragma once
 
+#include <backend/utility.hpp>
+
 #include <cstdint>
 #include <memory>
+#include <regex>
 #include <string>
 #include <vector>
+
+namespace relive {
 
 struct Track;
 struct Stream;
@@ -56,6 +31,21 @@ struct ChatMessage {
     int _time;
     MessageType _type;
     std::vector<std::string> _strings;
+
+    bool hasNick() const {
+        return !_strings.empty() && !_strings.front().empty() && _type != ChatMessage::eUnknown;
+    }
+
+    std::string nick() const {
+        if(!hasNick()) {
+            return std::string();
+        }
+        auto result = _strings.front();
+        if(result[result.length()-1] == '@') {
+            result.erase(result.length()-1);
+        }
+        return result;
+    }
 };
 
 struct Track
@@ -82,6 +72,8 @@ struct Track
         return (_streamId != nt._streamId || _name != nt._name || _artist != nt._artist ||
                 _type != nt._type || _time != nt._time || _flags != nt._flags || _metaInfo != nt._metaInfo);
     }
+
+    std::string reLiveURL(int64_t offset = 0) const;
 };
 
 struct Stream
@@ -132,6 +124,8 @@ struct Stream
         }
         return _tracks.empty() ? 0 : _tracks.size() - 1;
     }
+
+    std::string reLiveURL() const;
 };
 
 struct Url
@@ -154,6 +148,7 @@ struct Url
 struct Station
 {
     int64_t _id = -1;
+    int64_t _reliveId = 0;
     int _protocol = 0;
     std::string _name;
     // non api fields:
@@ -168,6 +163,79 @@ struct Station
     
     bool needsUpdate(const Station& ns)
     {
-        return (_protocol != ns._protocol || _name != ns._name || _flags != ns._flags || _metaInfo != ns._metaInfo);
+        return (_reliveId != ns._reliveId || _protocol != ns._protocol || _name != ns._name || _flags != ns._flags || _metaInfo != ns._metaInfo);
     }
+
+    std::string reLiveURL() const;
 };
+
+extern const char* base62Chars;
+
+inline std::string base62Encode(int64_t val)
+{
+    std::string result;
+    while(val)
+    {
+        result = base62Chars[val % 62] + result;
+        val /= 62;
+    }
+    if(result.empty())
+        result = "0";
+    return result;
+}
+
+inline int64_t base62Decode(std::string val)
+{
+    int64_t result = 0;
+    for(char digit : val)
+    {
+        const char* c = strchr(base62Chars, digit);
+        if(c)
+        {
+            result = result * 62 + (c - base62Chars);
+        }
+    }
+    return result;
+}
+
+
+inline auto parseUrl(const std::string& url)
+{
+    struct Result {
+        int64_t stationId{-1};
+        int64_t streamId{-1};
+        int64_t trackOffset{-1};
+    };
+    std::regex re("(?:relive:)?(station|stream|track)[^0-9a-zA-Z]([0-9a-zA-Z]+)(?:[^0-9a-zA-Z]([0-9a-zA-Z]+))?(?:[^0-9a-zA-Z]([0-9a-zA-Z]+))?");
+    auto text = trim(url);
+    if(starts_with(text, "http://") || starts_with(text, "https://")) {
+        if(text.find("track") != std::string::npos)
+            text.erase(0, text.find("track"));
+        else if(text.find("stream") != std::string::npos)
+            text.erase(0, text.find("stream"));
+        else if(text.find("station") != std::string::npos)
+            text.erase(0, text.find("station"));
+    }
+    std::smatch match;
+    Result result;
+    if(std::regex_match(text, match, re)) {
+        if(match[1] == "track")
+        {
+            result.stationId = base62Decode(match[2]);
+            result.streamId = base62Decode(match[3]);
+            result.trackOffset = base62Decode(match[4]);
+        }
+        else if(match[1] == "stream")
+        {
+            result.stationId = base62Decode(match[2]);
+            result.streamId = base62Decode(match[3]);
+        }
+        else if(match[1] == "station")
+        {
+            result.stationId = base62Decode(match[2]);
+        }
+    }
+    return result;
+}
+
+}

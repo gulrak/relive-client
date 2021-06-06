@@ -1,3 +1,8 @@
+//---------------------------------------------------------------------------------------
+// SPDX-License-Identifier: BSD-3-Clause
+// relive-client - A C++ implementation of the reLive protocol and an sqlite backend
+// Copyright (c) 2019, Steffen Schümann <s.schuemann@pobox.com>
+//---------------------------------------------------------------------------------------
 #include <backend/logging.hpp>
 #include <backend/relivedb.hpp>
 #include <backend/player.hpp>
@@ -5,7 +10,11 @@
 #include <ghc/cui.hpp>
 #include <ghc/options.hpp>
 #include <version/version.hpp>
+#if defined(RELIVE_RTAUDIO_BACKEND)
 #include <RtAudio.h>
+#elif defined(RELIVE_MINIAUDIO_BACKEND)
+#include <mackron/miniaudio.h>
+#endif
 #include <atomic>
 #include <csignal>
 #include <iostream>
@@ -104,7 +113,7 @@ public:
                 attr = A_BOLD;
             }
             result.emplace_back(ghc::cui::cell::eRight,  1, attr, stream._id == _activeStream ? ">" : " ");
-            result.emplace_back(ghc::cui::cell::eLeft,  10, attr, formattedTime(stream._timestamp));
+            result.emplace_back(ghc::cui::cell::eLeft,  10, attr, formattedDate(stream._timestamp));
             result.emplace_back(ghc::cui::cell::eLeft,  35, attr, stream._host);
             result.emplace_back(ghc::cui::cell::eLeft,  40, attr, stream._name);
             result.emplace_back(ghc::cui::cell::eRight,  8, attr, formattedDuration(stream._duration));
@@ -329,9 +338,9 @@ public:
                         _needsRefresh = true;
                     }
                 }
-                int chatPos = 0;
+                int chatPos = -1;
                 for(const auto& msg : _chatModel._chat) {
-                    if(msg._time < playTime) {
+                    if(msg._time <= playTime) {
                         ++chatPos;
                     }
                     else {
@@ -468,7 +477,7 @@ public:
     
     void drawPlayer()
     {
-        static const std::string states[] = { "Paused:", "Playing:", "End of:", "Ending: " };
+        static const std::string states[] = { "Paused:", "Playing:", "End of:", "Ending: ", "Error: " };
         if(validTerminal()) {
             print(1, height() - 5, std::string(width() - 2, ' '));
             print(1, height() - 4, std::string(width() - 2, ' '));
@@ -479,7 +488,7 @@ public:
             if(stream) {
                 auto space = width() - 4 - state.size();
                 if(space > 0) {
-                    auto title = "[" + formattedTime(stream->_timestamp) + "] " + stream->_host + ": " + stream->_name;
+                    auto title = "[" + formattedDate(stream->_timestamp) + "] " + stream->_host + ": " + stream->_name;
                     title = title.substr(0, width() - 4 - state.size());
                     print(2 + state.size(), height() - 5, title);
                 }
@@ -750,15 +759,16 @@ int main(int argc, char* argv[])
         }
 
         ghc::options parser(argc, argv);
-        parser.onOpt({"-?", "-h", "--help"}, "Output this help text", [&](std::string){
+        parser.onOpt({"-?", "-h", "--help"}, "Output this help text", [&](const std::string&){
             parser.usage(std::cout);
             exit(0);
         });
-        parser.onOpt({"-v", "--version"}, "Show program version and exit.", [&](std::string){
+        parser.onOpt({"-v", "--version"}, "Show program version and exit.", [&](const std::string&){
             std::cout << "reLiveCUI " << RELIVE_VERSION_STRING_LONG << std::endl;
             exit(0);
         });
-        parser.onOpt({"-l", "--list-devices"}, "Dump a list of found and supported output devices and exit.", [&](std::string){
+        parser.onOpt({"-l", "--list-devices"}, "Dump a list of found and supported output devices and exit.", [&](const std::string&){
+#ifdef RELIVE_RTAUDIO_BACKEND
             RtAudio audio;
             audio.showWarnings(false);
             unsigned int devices = audio.getDeviceCount();
@@ -778,9 +788,29 @@ int main(int argc, char* argv[])
                     std::cout << rates << "]" << std::endl;
                 }
             }
+#elif defined(RELIVE_MINIAUDIO_BACKEND)
+          ma_context context;
+          if (ma_context_init(nullptr, 0, nullptr, &context) != MA_SUCCESS) {
+              // Error.
+          }
+
+          ma_device_info* pPlaybackInfos;
+          ma_uint32 playbackCount;
+          ma_device_info* pCaptureInfos;
+          ma_uint32 captureCount;
+          if (ma_context_get_devices(&context, &pPlaybackInfos, &playbackCount, &pCaptureInfos, &captureCount) != MA_SUCCESS) {
+              // Error.
+          }
+
+          // Loop over each device info and do something with it. Here we just print the name with their index. You may want
+          // to give the user the opportunity to choose which device they'd prefer.
+          for (ma_uint32 iDevice = 0; iDevice < playbackCount; iDevice += 1) {
+              printf("%d - %s[%s] %s\n", iDevice, (pPlaybackInfos[iDevice].isDefault ? "*":" "), pPlaybackInfos[iDevice].id.coreaudio, pPlaybackInfos[iDevice].name);
+          }
+#endif
             exit(0);
         });
-        parser.onOpt({"-s?", "--default-station?"}, "[<name>]\tSet the default station to switch to on startup, only significant part of the name is needed. Without a parameter, this resets to starting on station screen.", [&](std::string str){
+        parser.onOpt({"-s?", "--default-station?"}, "[<name>]\tSet the default station to switch to on startup, only significant part of the name is needed. Without a parameter, this resets to starting on station screen.", [&](const std::string& str){
             ReLiveDB db;
             if(str.empty()) {
                 db.setConfigValue(Keys::default_station, "");

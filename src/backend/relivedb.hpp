@@ -1,37 +1,7 @@
 //---------------------------------------------------------------------------------------
-//
-// relivedb - A C++ implementation of the reLive protocoll and an sqlite backend
-//
-//---------------------------------------------------------------------------------------
-//
+// SPDX-License-Identifier: BSD-3-Clause
+// relive-client - A C++ implementation of the reLive protocol and an sqlite backend
 // Copyright (c) 2019, Steffen Schümann <s.schuemann@pobox.com>
-// All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without modification,
-// are permitted provided that the following conditions are met:
-//
-// 1. Redistributions of source code must retain the above copyright notice, this
-//    list of conditions and the following disclaimer.
-//
-// 2. Redistributions in binary form must reproduce the above copyright notice,
-//    this list of conditions and the following disclaimer in the documentation
-//    and/or other materials provided with the distribution.
-//
-// 3. Neither the name of the copyright holder nor the names of its contributors
-//    may be used to endorse or promote products derived from this software without
-//    specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
 //---------------------------------------------------------------------------------------
 #pragma once
 
@@ -47,10 +17,16 @@ namespace relive
     
 struct Keys
 {
-    static std::string version;             // backend version that wrote to the db last
-    static std::string relive_root_server;  // url of the relive api root server
-    static std::string last_relive_sync;    // unix timestamp of the last sync with relive
-    static std::string default_station;     // default station to switch to, start with stations view if unset or empty
+    inline static std::string version = "version";                          // backend version that wrote to the db last
+    inline static std::string relive_root_server = "relive_root_server";    // url of the relive api root server
+    inline static std::string last_relive_sync = "last_relive_sync";        // unix timestamp of the last sync with relive
+    inline static std::string default_station = "default_station";          // default station to switch to, start with stations view if unset or empty
+    inline static std::string play_position = "play_position";              // play position save point
+    inline static std::string output_device = "output_device";              // device name of output device
+    inline static std::string show_buffer_bar = "show_buffer_bar";          // render the buffer fill level as bar
+    inline static std::string use_dark_theme = "use_dark_theme";            // use the dark ui coloring theme
+    inline static std::string start_at_last_position = "start_at_last_pos"; // select last play position on startup
+    inline static std::string name_color_seed = "name_color_seed";          // seed used for hashing up chat user name coloring
 };
 
 class ReLiveDB
@@ -90,7 +66,23 @@ public:
     std::vector<Station> findStations(const std::string& pattern);
     std::vector<Stream> findStreams(const std::string& pattern);
     std::vector<Track> findTracks(const std::string& pattern);
-    
+
+    struct FindTracksInfo {
+        int64_t _trackId;
+        std::string _streamName;
+        std::string _artist;
+        std::string _trackName;
+        int64_t _timestamp;
+    };
+    enum FindTracksFilter {
+        eNone,      // No filter
+        eTracks,    // Music
+        eJingle,    // Jingle
+        eNarration, // Conversation / Narration
+    };
+    std::vector<FindTracksInfo> findTracksInfo(const std::string& pattern, FindTracksFilter filter = eNone);
+    std::unique_ptr<Track> fetchTrack(int64_t trackId);
+
     std::vector<ChatMessage> fetchChat(const Stream& stream);
     
 private:

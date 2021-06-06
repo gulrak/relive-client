@@ -1,3 +1,8 @@
+//---------------------------------------------------------------------------------------
+// SPDX-License-Identifier: BSD-3-Clause
+// relive-client - A C++ implementation of the reLive protocol and an sqlite backend
+// Copyright (c) 2019, Steffen Schümann <s.schuemann@pobox.com>
+//---------------------------------------------------------------------------------------
 #define GHC_FILESYSTEM_IMPLEMENTATION
 #include <ghc/filesystem.hpp>
 
@@ -89,8 +94,11 @@ static std::string getOS()
     std::string kernel = kernelVersion;
     free(kernelVersion);
     if(std::regex_match(kernel, match, version)) {
-        auto major = std::stoi(match[1].str()) - 4;
-        return std::string("macOS 10.") + std::to_string(major);
+        auto kernelMajor = std::stoi(match[1].str());
+        if(kernelMajor >= 20) {
+            return std::string("macOS 11.") + std::to_string(kernelMajor-20);
+        }
+        return std::string("macOS 10.") + std::to_string(kernelMajor-4);
     }
     return "unknown macOS";
 #endif
@@ -162,7 +170,7 @@ std::string formattedDuration(int64_t seconds)
     return result;
 }
 
-std::string formattedTime(int64_t unixTimestamp)
+std::string formattedDate(int64_t unixTimestamp)
 {
     std::string result;
     struct std::tm* ti = nullptr;
