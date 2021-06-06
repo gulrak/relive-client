@@ -10,6 +10,31 @@ This repository collects my current work on reLive client software. It is a full
 Originally there was only a curses based client, named **reLiveCUI**, developed and tested on macOS and Ubuntu 18.04,
 but starting with the `dev-reliveg-wip` branch, the work on a new graphical client named **reLiveG** has begun.
 
+# reLiveG
+
+reLiveG is a live show replay client for experiencing past scene-related shows and podcasts.
+
+It is implemented as a new graphical client and currently starting beta phase. Initially
+it supports only macOS, but Windows and Linux support is planned.
+
+### Features
+
+* Play streams from all supported reLive stations
+* View synchronized chat of live shows where available
+* Search for streams or tracks to find your favorites
+* Hardware accelerated UI
+
+### Planned features
+
+* Live radio streaming
+* Windows and Linux support
+
+### Screenshots
+
+![Track View](https://github.com/gulrak/relive-client/blob/master/screenshots/reliveg-macos-tracks_v0.7.53.png?raw=true)
+![Chat View](https://github.com/gulrak/relive-client/blob/master/screenshots/reliveg-macos-chat_v0.7.53.png?raw=true)
+
+---
 # reLiveCUI
 
 ## Usage:
