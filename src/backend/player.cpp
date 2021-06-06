@@ -15,9 +15,6 @@ namespace fs = ghc::filesystem;
 #define MINIMP3_IMPLEMENTATION
 #include <minimp3.h>
 
-#ifdef RELIVE_RTAUDIO_BACKEND
-#include <RtAudio.h>
-#elif defined(RELIVE_MINIAUDIO_BACKEND)
 #ifdef __APPLE__
 #define MA_NO_RUNTIME_LINKING
 #endif
@@ -26,11 +23,6 @@ namespace fs = ghc::filesystem;
 #define MA_NO_FLAC
 #define MINIAUDIO_IMPLEMENTATION
 #include <mackron/miniaudio.h>
-#elif defined(RELIVE_PORTAUDIO_BACKEND)
-#include <portaudio.h>
-#else
-#error "No audio backend selected, set either RELIVE_RTAUDIO_BACKEND or RELIVE_PORTAUDIO_BACKEND!"
-#endif
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <httplib.h>
@@ -44,14 +36,6 @@ namespace fs = ghc::filesystem;
 #include <thread>
 #include <vector>
 
-#ifdef RELIVE_RTAUDIO_BACKEND
-int playStreamCallback(void* output, void* /*input*/, unsigned int frameCount, double /*streamTime*/, RtAudioStreamStatus /*status*/, void* userData)
-{
-    auto* player = static_cast<relive::Player*>(userData);
-    player->playMusic((unsigned char*)output, frameCount);
-    return 0;
-}
-#elif defined(RELIVE_MINIAUDIO_BACKEND)
 extern "C" {
 void playStreamCallback(ma_device* pDevice, void* output, const void* /*input*/, ma_uint32 frameCount)
 {
@@ -65,17 +49,6 @@ void streamStoppedCallback(ma_device* pDevice)
     player->streamStopped();
 }
 }
-#elif defined(RELIVE_PORTAUDIO_BACKEND)
-extern "C" {
-int playStreamCallback(const void* /*input*/, void* output, unsigned long frameCount, const PaStreamCallbackTimeInfo* /*timeInfo*/, PaStreamCallbackFlags /*statusFlags*/, void* userData)
-{
-    auto* player = static_cast<relive::Player*>(userData);
-    player->playMusic((unsigned char*)output, frameCount);
-    //std::clog << "callback" << std::endl;
-    return 0;
-}
-}
-#endif
 
 namespace relive {
 
@@ -106,14 +79,8 @@ struct Player::impl
     std::vector<char> _chunk;
     mp3dec_t _mp3d;
     mp3dec_frame_info_t _mp3info;
-#ifdef RELIVE_RTAUDIO_BACKEND
-    RtAudio _dac;
-#elif defined(RELIVE_MINIAUDIO_BACKEND)
     ma_context _maContext;
     ma_device _maDevice;
-#elif defined(RELIVE_PORTAUDIO_BACKEND)
-    PaStream* _paStream;
-#endif
     std::atomic<PlayerState> _state;
     enum BackendState { eUninitialized, eInitialized, eReadyForPlayback };
     std::atomic<BackendState> _backendState;
@@ -134,9 +101,6 @@ struct Player::impl
         , _receiveBuffer(1024 * 1024)
         , _sampleBuffer(16 * 1024)
         , _chunk(_chunkSize)
-#ifdef RELIVE_PORTAUDIO_BACKEND
-        , _paStream(nullptr)
-#endif
         , _state(ePAUSED)
         , _progress(0)
         , _backendState(eUninitialized)
@@ -148,23 +112,6 @@ struct Player::impl
 Player::Player()
     : _impl(std::make_unique<impl>(this))
 {
-#ifdef RELIVE_RTAUDIO_BACKEND
-    _impl->_dac.showWarnings(false);
-#endif
-#ifdef RELIVE_PORTAUDIO_BACKEND
-#ifdef __linux__
-    freopen("/dev/null", "w", stderr);
-#endif
-    PaError err = Pa_Initialize();
-#ifdef __linux__
-    freopen("/dev/tty", "w", stderr);
-#endif
-    if (err != paNoError) {
-        ERROR_LOG(0, "Couldn't initalize PortAudio: " << Pa_GetErrorText(err));
-        throw std::runtime_error(std::string("Couldn't initalize PortAudio: ") + Pa_GetErrorText(err));
-    }
-#endif
-#ifdef RELIVE_MINIAUDIO_BACKEND
     ma_result rc = 0;
     if ((rc = ma_context_init(NULL, 0, NULL, &_impl->_maContext)) != MA_SUCCESS) {
         ERROR_LOG(0, "Error while initializing miniaudio context: " << rc);
@@ -172,7 +119,6 @@ Player::Player()
     else {
         _impl->_backendState = impl::eInitialized;
     }
-#endif
     configureAudio(getDynamicDefaultOutputName());
 }
 
@@ -181,9 +127,7 @@ Player::~Player()
     _impl->_isRunning = false;
     _impl->_worker.join();
     disableAudio();
-#ifdef RELIVE_MINIAUDIO_BACKEND
     ma_context_uninit(&_impl->_maContext);
-#endif
 }
 
 void Player::configureAudio(std::string deviceName)
@@ -199,20 +143,6 @@ void Player::configureAudio(std::string deviceName)
         disableAudio();
     }
     _impl->_currentDeviceName = deviceName;
-#ifdef RELIVE_RTAUDIO_BACKEND
-    RtAudio::StreamParameters parameters;
-    parameters.deviceId = _impl->_dac.getDefaultOutputDevice();
-    parameters.nChannels = _impl->_numChannels;
-    parameters.firstChannel = 0;
-    unsigned int bufferFrames = _impl->_frameRate;
-    try {
-        _impl->_dac.openStream(&parameters, NULL, RTAUDIO_SINT16, _impl->_frameRate, &bufferFrames, &playStreamCallback, this);
-        //--std::cout << "Buffer choosen: " << bufferFrames << ", latency: " << _impl->_dac.getStreamLatency() <<  std::endl;
-    }
-    catch (RtAudioError& e) {
-        ERROR_LOG(0, "Error while initializing audio: " << e.getMessage());
-    }
-#elif defined(RELIVE_MINIAUDIO_BACKEND)
     ma_result rc = 0;
     ma_device_info* pPlaybackInfos;
     ma_uint32 playbackCount;
@@ -248,18 +178,6 @@ void Player::configureAudio(std::string deviceName)
         ERROR_LOG(0, "Couldn't enumaerate devices with miniaudio.");
         _impl->_backendState = impl::eInitialized;
     }
-#elif defined(RELIVE_PORTAUDIO_BACKEND)
-    PaStreamParameters param;
-    param.channelCount = _impl->_numChannels;
-    param.device = Pa_GetDefaultOutputDevice();
-    param.hostApiSpecificStreamInfo = NULL;
-    param.suggestedLatency = 1.0;  // TODO: optimize
-    param.sampleFormat = paInt16;
-    int rc = 0;
-    if ((rc = Pa_OpenStream(&_impl->_paStream, NULL, &param, _impl->_frameRate, paFramesPerBufferUnspecified, paNoFlag, playStreamCallback, this)) < 0) {
-        ERROR_LOG(0, "Error while initializing audio: " << Pa_GetErrorText(rc));
-    }
-#endif
 }
 
 void Player::disableAudio()
@@ -268,19 +186,8 @@ void Player::disableAudio()
     _impl->_isPlaying = false;
     _impl->_state = ePAUSED;
     stopAudio();
-#ifdef RELIVE_RTAUDIO_BACKEND
-    if (_impl->_dac.isStreamOpen()) {
-        _impl->_dac.closeStream();
-    }
-#elif defined(RELIVE_MINIAUDIO_BACKEND)
     std::scoped_lock lock{_impl->_mutex};
     ma_device_uninit(&_impl->_maDevice);
-#elif defined(RELIVE_PORTAUDIO_BACKEND)
-    if (_impl->_paStream) {
-        Pa_CloseStream(_impl->_paStream);
-        _impl->_paStream = nullptr;
-    }
-#endif
 }
 
 void Player::streamStopped()
@@ -293,70 +200,28 @@ void Player::streamStopped()
 
 void Player::startAudio()
 {
-#ifdef RELIVE_RTAUDIO_BACKEND
-    try {
-        _impl->_dac.startStream();
-    }
-    catch (RtAudioError& e) {
-        ERROR_LOG(0, "Error while initializing audio: " << e.getMessage());
-    }
-#elif defined(RELIVE_MINIAUDIO_BACKEND)
     std::scoped_lock lock{_impl->_mutex};
     if(ma_device_start(&_impl->_maDevice) != MA_SUCCESS) {
         ERROR_LOG(0, "Error starting miniaudio device.");
     }
-#elif defined(RELIVE_PORTAUDIO_BACKEND)
-    auto rc = Pa_StartStream(_impl->_paStream);
-    if (rc != paNoError) {
-        ERROR_LOG(0, "Error while initializing audio: " << Pa_GetErrorText(rc));
-    }
-#endif
 }
 
 void Player::stopAudio()
 {
     // std::cout << "stop audio start" << std::endl;
-#ifdef RELIVE_RTAUDIO_BACKEND
-    try {
-        _impl->_dac.stopStream();
-    }
-    catch (RtAudioError& e) {
-        ERROR_LOG(0, "Error while stopping audio: " << e.getMessage());
-    }
-#elif defined(RELIVE_MINIAUDIO_BACKEND)
     std::scoped_lock lock{_impl->_mutex};
     if(_impl->_maDevice.state != MA_STATE_STOPPED) {
         if (ma_device_stop(&_impl->_maDevice) != MA_SUCCESS) {
             ERROR_LOG(0, "Error stopping miniaudio device.");
         }
     }
-#elif defined(RELIVE_PORTAUDIO_BACKEND)
-    if (_impl->_paStream) {
-        Pa_StopStream(_impl->_paStream);
-        // Pa_AbortStream(_impl->_paStream);
-    }
-#endif
     // std::cout << "stop audio end" << std::endl;
 }
 
 void Player::abortAudio()
 {
     // std::cout << "stop audio start" << std::endl;
-#ifdef RELIVE_RTAUDIO_BACKEND
-    try {
-        _impl->_dac.abortStream();
-    }
-    catch (RtAudioError& e) {
-        ERROR_LOG(0, "Error while stopping audio: " << e.getMessage());
-    }
-#elif defined(RELIVE_MINIAUDIO_BACKEND)
     stopAudio();
-#elif defined(RELIVE_PORTAUDIO_BACKEND)
-    if (_impl->_paStream) {
-        // Pa_StopStream(_impl->_paStream);
-        Pa_AbortStream(_impl->_paStream);
-    }
-#endif
     // std::cout << "stop audio end" << std::endl;
 }
 
@@ -519,11 +384,7 @@ void Player::run()
                     }
                 }
                 else {
-                    if (_impl->_sampleBuffer.free() > 4096 && _impl->_receiveBuffer.filled()) {
-                        decodeFrame();
-                    } else {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(_impl->_receiveBuffer.filled() * 100 / _impl->_receiveBuffer.bufferSize() > 66 ? 250 : 100));
-                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(_impl->_receiveBuffer.filled() * 100 / _impl->_receiveBuffer.bufferSize() > 66 ? 250 : 100));
                 }
             }
             else {
@@ -851,7 +712,7 @@ void Player::playMusic(unsigned char* buffer, int frames)
             // unsigned int lastFill;
             do {
                 // lastFill = _impl->_sampleBuffer.filled();
-                decodeFrame();
+                for(int i = 0; i < 3; ++i) decodeFrame();
             } while (_impl->_sampleBuffer.filled() < (unsigned int)frames * _impl->_numChannels && _impl->_receiveBuffer.filled() &&
                      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() < requestedTime * 2 / 3);
         }
@@ -898,7 +759,6 @@ std::string Player::getDynamicDefaultOutputName()
 std::string Player::getCurrentDefaultOutputName() const
 {
     ZoneScopedN("getCurrentDefaultOutputName");
-#if defined(RELIVE_MINIAUDIO_BACKEND)
     ma_device_info* pPlaybackInfos;
     ma_uint32 playbackCount;
     ma_device_info* pCaptureInfos;
@@ -918,23 +778,12 @@ std::string Player::getCurrentDefaultOutputName() const
         ERROR_LOG(0, "Couldn't enumaerate devices with miniaudio.");
     }
     return fallback;
-#endif
 }
 
 std::vector<Player::Device> Player::getOutputDevices()
 {
     std::vector<Device> result;
     std::scoped_lock lock{_impl->_mutex};
-#ifdef RELIVE_RTAUDIO_BACKEND
-    unsigned int devices = _impl->_dac.getDeviceCount();
-    RtAudio::DeviceInfo info;
-    for (unsigned int i = 0; i < devices; ++i) {
-        info = _impl->_dac.getDeviceInfo(i);
-        if (info.probed && info.outputChannels >= 2) {
-            result.push_back(Device{info.name, info.outputChannels, info.preferredSampleRate});
-        }
-    }
-#elif defined(RELIVE_MINIAUDIO_BACKEND)
     ma_device_info* pPlaybackInfos;
     ma_uint32 playbackCount;
     ma_device_info* pCaptureInfos;
@@ -949,7 +798,6 @@ std::vector<Player::Device> Player::getOutputDevices()
     else {
         ERROR_LOG(0, "Couldn't enumaerate devices with miniaudio.");
     }
-#endif
     return result;
 }
 

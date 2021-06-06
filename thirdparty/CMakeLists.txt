@@ -78,6 +78,3 @@ else()
     target_include_directories(imgui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/imgui ${CMAKE_CURRENT_SOURCE_DIR}/imgui/examples ${CMAKE_CURRENT_SOURCE_DIR}/imgui/examples/libs/gl3w)
     target_link_libraries(imgui PUBLIC glfw ${OPENGL_LIBRARIES})
 endif()
-
-#add_subdirectory(rtaudio)
-#add_subdirectory(midifile)

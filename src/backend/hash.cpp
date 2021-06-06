@@ -153,10 +153,10 @@ void MurmurHash3_x86_32 ( const void * key, int len,
     *(uint32_t*)out = h1;
 }
 
-uint32_t hash(const std::string& str)
+uint32_t hash(const std::string& str, uint32_t seed)
 {
     uint32_t result;
-    MurmurHash3_x86_32(str.c_str(), str.length(), 31337, &result);
+    MurmurHash3_x86_32(str.c_str(), str.length(), seed, &result);
     return result;
 }
 

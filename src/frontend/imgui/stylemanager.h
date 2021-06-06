@@ -26,7 +26,7 @@ enum reLiveColor : int {
 class StyleManager
 {
 public:
-    enum Predefined { DarkTheme, LightTheme, ColorfulTheme };
+    enum Predefined { DarkTheme, LightTheme };
     StyleManager() = default;
 
     ImU32 getColor(int colIdx)
@@ -88,6 +88,16 @@ public:
         }
     }
 
+    ImVec4 getColorIV4(int colIdx)
+    {
+        if(colIdx < reLiveCol_custom_start) {
+            return ImGui::GetStyle().Colors[colIdx];
+        }
+        else {
+            return ImGui::ColorConvertU32ToFloat4(_colors[colIdx - reLiveCol_custom_start]);
+        }
+    }
+
     void pushColor(int colIdx, int colIdx2)
     {
         assert(colIdx < colIdx2);
@@ -98,6 +108,7 @@ public:
     {
         _colors.resize(reLiveCol_max_color - reLiveCol_custom_start);
         switch (theme) {
+            default:
             case DarkTheme: {
                 setColor(ImGuiCol_Text, ImVec4(0.80f, 0.80f, 0.80f, 1.00f));
                 setColor(ImGuiCol_TextDisabled, ImVec4(0.50f, 0.50f, 0.50f, 1.00f));
@@ -199,11 +210,11 @@ public:
                 setColor(ImGuiCol_ResizeGrip,  ImVec4(0.26f, 0.59f, 0.98f, 0.25f));
                 setColor(ImGuiCol_ResizeGripHovered,  ImVec4(0.26f, 0.59f, 0.98f, 0.67f));
                 setColor(ImGuiCol_ResizeGripActive,  ImVec4(0.26f, 0.59f, 0.98f, 0.95f));
-                setColor(ImGuiCol_Tab,  ImVec4(0.18f, 0.35f, 0.58f, 0.86f));
-                setColor(ImGuiCol_TabHovered,  ImVec4(0.26f, 0.59f, 0.98f, 0.80f));
-                setColor(ImGuiCol_TabActive,  ImVec4(0.20f, 0.41f, 0.68f, 1.00f));
-                setColor(ImGuiCol_TabUnfocused,  ImVec4(0.07f, 0.10f, 0.15f, 0.97f));
-                setColor(ImGuiCol_TabUnfocusedActive,  ImVec4(0.14f, 0.26f, 0.42f, 1.00f));
+                setColor(ImGuiCol_Tab,  ImVec4(0.26f, 0.51f, 0.85f, 0.86f));
+                setColor(ImGuiCol_TabHovered,  ImVec4(0.41f, 0.68f, 1.00f, 0.80f));
+                setColor(ImGuiCol_TabActive,  ImVec4(0.29f, 0.61f, 1.00f, 1.00f));
+                setColor(ImGuiCol_TabUnfocused,  ImVec4(0.36f, 0.52f, 0.77f, 0.97f));
+                setColor(ImGuiCol_TabUnfocusedActive,  ImVec4(0.26f, 0.49f, 0.79f, 1.00f));
                 setColor(ImGuiCol_PlotLines,  ImVec4(0.61f, 0.61f, 0.61f, 1.00f));
                 setColor(ImGuiCol_PlotLinesHovered,  ImVec4(1.00f, 0.43f, 0.35f, 1.00f));
                 setColor(ImGuiCol_PlotHistogram,  ImVec4(0.90f, 0.70f, 0.00f, 1.00f));

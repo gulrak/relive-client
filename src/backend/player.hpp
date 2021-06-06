@@ -10,9 +10,6 @@
 #include <cstdint>
 #include <memory>
 
-//#define RELIVE_RTAUDIO_BACKEND
-//#define RELIVE_PORTAUDIO_BACKEND
-
 namespace relive {
 
 enum PlayerState { ePAUSED, ePLAYING, eENDOFSTREAM, eENDING, eERROR };

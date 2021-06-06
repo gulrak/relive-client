@@ -17,12 +17,16 @@ namespace relive
     
 struct Keys
 {
-    static std::string version;             // backend version that wrote to the db last
-    static std::string relive_root_server;  // url of the relive api root server
-    static std::string last_relive_sync;    // unix timestamp of the last sync with relive
-    static std::string default_station;     // default station to switch to, start with stations view if unset or empty
-    static std::string play_position;       // play position save point
-    static std::string output_device;       // device name of output device
+    inline static std::string version = "version";                          // backend version that wrote to the db last
+    inline static std::string relive_root_server = "relive_root_server";    // url of the relive api root server
+    inline static std::string last_relive_sync = "last_relive_sync";        // unix timestamp of the last sync with relive
+    inline static std::string default_station = "default_station";          // default station to switch to, start with stations view if unset or empty
+    inline static std::string play_position = "play_position";              // play position save point
+    inline static std::string output_device = "output_device";              // device name of output device
+    inline static std::string show_buffer_bar = "show_buffer_bar";          // render the buffer fill level as bar
+    inline static std::string use_dark_theme = "use_dark_theme";            // use the dark ui coloring theme
+    inline static std::string start_at_last_position = "start_at_last_pos"; // select last play position on startup
+    inline static std::string name_color_seed = "name_color_seed";          // seed used for hashing up chat user name coloring
 };
 
 class ReLiveDB
@@ -70,7 +74,13 @@ public:
         std::string _trackName;
         int64_t _timestamp;
     };
-    std::vector<FindTracksInfo> findTracksInfo(const std::string& pattern);
+    enum FindTracksFilter {
+        eNone,      // No filter
+        eTracks,    // Music
+        eJingle,    // Jingle
+        eNarration, // Conversation / Narration
+    };
+    std::vector<FindTracksInfo> findTracksInfo(const std::string& pattern, FindTracksFilter filter = eNone);
     std::unique_ptr<Track> fetchTrack(int64_t trackId);
 
     std::vector<ChatMessage> fetchChat(const Stream& stream);

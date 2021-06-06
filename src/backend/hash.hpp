@@ -10,6 +10,6 @@
 
 namespace relive {
 
-extern uint32_t hash(const std::string& str);
+extern uint32_t hash(const std::string& str, uint32_t seed = 31337);
 
 }

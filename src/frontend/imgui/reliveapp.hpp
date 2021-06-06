@@ -102,6 +102,9 @@ private:
     int _progress = 0;
     std::string _searchText;
     bool _darkMode = true;
+    bool _receiveBufferBar = false;
+    bool _startAtLastPosition = true;
+    int _nameColorSeed = 31337;
     Player::Device _outputDevice;
 };
 
