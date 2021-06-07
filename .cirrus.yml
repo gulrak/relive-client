@@ -4,6 +4,7 @@ macOS_task:
   prepare_script:
     - brew install cmake
     - brew install pkg-config
+    - brew install sqlite
     - mkdir build
   configure_script:
     - cd ./build
