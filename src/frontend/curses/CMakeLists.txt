@@ -26,5 +26,4 @@ if(UNIX AND NOT APPLE)
     install(FILES ${PROJECT_SOURCE_DIR}/man/relivecui.1 DESTINATION shared/man/man1 COMPONENT relivecui_app)
 endif()
 
-set(CPACK_PROJECT_CONFIG_FILE ${PROJECT_SOURCE_DIR}/Packaging.cmake)
 
