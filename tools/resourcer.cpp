@@ -1,10 +1,11 @@
 
 #include <fstream>
-#include <ghc/fs_std.hpp>
+#include <ghc/filesystem.hpp>
 #include <iostream>
 #include <map>
 #include <string>
 
+namespace fs = ghc::filesystem;
 typedef std::map<std::string, long> FileInfos;
 
 std::string lineBuffer;

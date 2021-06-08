@@ -198,7 +198,7 @@ void ReLiveApp::doSetup()
         0xfba3,  0xfbaa,  0xfbad,  0xfbd3,  0xfbdc,  0xfbde,  0xfbdf,  0xfbe4,  0xfbe9,  0xfbfc,  0xfbff,  0xfe00,  0xfe0f,  0xfe20,  0xfe23,  0xfe70,  0xfe74,  0xfe76,  0xfefc,  0xfeff,  0xfeff,  0xfff9,  0xfffd,  0x10300, 0x1031e, 0x10320, 0x10323,
         0x1d300, 0x1d356, 0x1d538, 0x1d539, 0x1d53b, 0x1d53e, 0x1d540, 0x1d544, 0x1d546, 0x1d546, 0x1d54a, 0x1d550, 0x1d552, 0x1d56b, 0x1d5a0, 0x1d5d3, 0x1d7d8, 0x1d7eb, 0x1ee00, 0x1ee03, 0x1ee05, 0x1ee1f, 0x1ee21, 0x1ee22, 0x1ee24, 0x1ee24, 0x1ee27,
         0x1ee27, 0x1ee29, 0x1ee32, 0x1ee34, 0x1ee37, 0x1ee39, 0x1ee39, 0x1ee3b, 0x1ee3b, 0x1ee61, 0x1ee62, 0x1ee64, 0x1ee64, 0x1ee67, 0x1ee6a, 0x1ee6c, 0x1ee72, 0x1ee74, 0x1ee77, 0x1ee79, 0x1ee7c, 0x1ee7e, 0x1ee7e, 0x1f030, 0x1f093, 0x1f0a0, 0x1f0ae,
-        0x1f0b1, 0x1f0be, 0x1f0c1, 0x1f0cf, 0x1f0d1, 0x1f0df, 0x1f311, 0x1f318, 0x1f42d, 0x1f42e, 0x1f431, 0x1f431, 0x1f435, 0x1f435, 0x1f600, 0x1f623, 0x1f625, 0x1f62b, 0x1f62d, 0x1f640, 0x1f643, 0x1f643};
+        0x1f0b1, 0x1f0be, 0x1f0c1, 0x1f0cf, 0x1f0d1, 0x1f0df, 0x1f311, 0x1f318, 0x1f42d, 0x1f42e, 0x1f431, 0x1f431, 0x1f435, 0x1f435, 0x1f600, 0x1f623, 0x1f625, 0x1f62b, 0x1f62d, 0x1f640, 0x1f643, 0x1f643, 0, 0};
     builder.BuildRanges(&ranges);
     ImFontConfig font_cfg;
     font_cfg.OversampleH = font_cfg.OversampleV = 1;
@@ -281,18 +281,20 @@ void ReLiveApp::selectTrack(Track track)
 
 void ReLiveApp::savePosition()
 {
+    auto dbPosition = _rdb.getConfigValue(Keys::play_position, std::string());
+    std::string newPos;
     if (_player.state() != PlayerState::eENDOFSTREAM && _activeTrack) {
-        _rdb.setConfigValue(Keys::play_position, _activeTrackInfo.reLiveURL(_player.playTime()));
+        newPos = _activeTrackInfo.reLiveURL(_player.playTime());
     }
     else if (_activeStation) {
         for (const auto& station : _stations) {
             if (_activeStation == station._id) {
-                _rdb.setConfigValue(Keys::play_position, station.reLiveURL());
+                newPos = station.reLiveURL();
             }
         }
     }
-    else {
-        _rdb.setConfigValue(Keys::play_position, "");
+    if(!newPos.empty() && dbPosition != newPos) {
+        _rdb.setConfigValue(Keys::play_position, newPos);
     }
     _lastSavepoint = currentTime();
 }
@@ -401,11 +403,16 @@ void ReLiveApp::renderPlayBar(ImVec2 size)
         int w = width;
         for (const auto& track : stream->_tracks) {
             auto part = track._duration / dt;
+            if(sum + part > width) {
+                part = width - sum;
+            }
             if (part > 0.1f) {
                 // draw from sum to sum+part
                 drawList->AddRectFilled(ImVec2(pos.x + sum, pos.y), ImVec2(pos.x + sum + part, pos.y + size.y), index & 1 ? col1 : col2);
             }
-            sum += part;
+            if(part > 0.0f) {
+                sum += part;
+            }
             ++index;
         }
         int playTimePos = _player.playTime() / dt;

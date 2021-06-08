@@ -114,6 +114,8 @@ find_library(LIBRESSL_CRYPTO_LIBRARY
     NAMES
         libcrypto
         crypto
+        libcrypto-46
+        crypto-46
         NAMES_PER_DIR
     ${_LIBRESSL_ROOT_HINTS_AND_PATHS}
     PATH_SUFFIXES
@@ -125,6 +127,8 @@ find_library(LIBRESSL_SSL_LIBRARY
     NAMES
         libssl
         ssl
+        libssl-48
+        ssl-48
         NAMES_PER_DIR
     ${_LIBRESSL_ROOT_HINTS_AND_PATHS}
     PATH_SUFFIXES
@@ -136,6 +140,8 @@ find_library(LIBRESSL_TLS_LIBRARY
     NAMES
         libtls
         tls
+        libtls-20
+        tls-20
         NAMES_PER_DIR
     ${_LIBRESSL_ROOT_HINTS_AND_PATHS}
     PATH_SUFFIXES

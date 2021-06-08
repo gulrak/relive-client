@@ -14,7 +14,7 @@ endif()
 #    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/relivecui.command ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/relivecui.command)
 #endif()
 add_executable(relivecui main.cpp info.hpp config.hpp ../../../thirdparty/ghc/cui.hpp)
-target_link_libraries(relivecui relive-backend ${CURSES_LIBRARIES} ${SSL_BACKEND} ${AUDIO_BACKEND_LIBRARIES} ${SQLITE3_TARGET} Threads::Threads)
+target_link_libraries(relivecui relive-backend ${CURSES_LIBRARIES} ${SSL_BACKEND} ${AUDIO_BACKEND_LIBRARIES} ${SQLITE3_TARGET} Threads::Threads ${CMAKE_DL_LIBS})
 
 if(APPLE)
     install(TARGETS relivecui DESTINATION "." COMPONENT relivecui_app)

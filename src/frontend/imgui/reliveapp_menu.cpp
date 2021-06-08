@@ -64,7 +64,7 @@ void ReLiveApp::renderAppMenu()
     //-----------------------------------------------------------------------------------------
     // SETTINGS DIALOG
     //-----------------------------------------------------------------------------------------
-    static std::__1::vector<Player::Device> outputDevices;
+    static std::vector<Player::Device> outputDevices;
     static std::string defaultStation;
     if(openSettings) {
         ImGui::OpenPopup("reLiveG Settings");

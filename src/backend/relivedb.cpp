@@ -62,7 +62,7 @@ using Storage = decltype(initStorage(""));
 
 static Storage& storage()
 {
-    static Storage _storage = initStorage(fs::path(dataPath()) / "relive.sqlite");
+    static Storage _storage = initStorage((fs::path(dataPath()) / "relive.sqlite").string());
     return _storage;
 }
 
