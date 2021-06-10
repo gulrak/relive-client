@@ -220,6 +220,7 @@ void ReLiveApp::doSetup()
     _receiveBufferBar = _rdb.getConfigValue(Keys::show_buffer_bar, _receiveBufferBar);
     _startAtLastPosition = _rdb.getConfigValue(Keys::start_at_last_position, _startAtLastPosition);
     _nameColorSeed = _rdb.getConfigValue(Keys::name_color_seed, _nameColorSeed);
+    _player.volume(_rdb.getConfigValue(Keys::player_volume, _player.volume()));
     fetchStations();
 }
 
@@ -450,6 +451,7 @@ void ReLiveApp::renderPlayControl()
     ImGui::PushItemWidth(PLAY_CONTROLS_WIDTH - 8);
     if (ImGui::SliderInt("##Vol", &volume, 0, 100, "")) {
         _player.volume(volume);
+        _rdb.setConfigValue(Keys::player_volume, volume);
     }
     ImGui::Spacing();
     ImGui::Spacing();

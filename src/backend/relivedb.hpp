@@ -27,6 +27,7 @@ struct Keys
     inline static std::string use_dark_theme = "use_dark_theme";            // use the dark ui coloring theme
     inline static std::string start_at_last_position = "start_at_last_pos"; // select last play position on startup
     inline static std::string name_color_seed = "name_color_seed";          // seed used for hashing up chat user name coloring
+    inline static std::string player_volume = "player_volume";              // Replay Volume position of the player
 };
 
 class ReLiveDB
