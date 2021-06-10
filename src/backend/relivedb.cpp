@@ -461,6 +461,15 @@ void ReLiveDB::doRefreshStationInfo(const ghc::net::uri& station, int64_t statio
                         stationWeb._id = oldWeb.front()._id;
                         storage().update(stationWeb);
                     }
+                    auto oldLiveStream = storage().get_all<Url>(where(c(&Url::_ownerId) == stationId and c(&Url::_type) == int(Url::eLiveStream)));
+                    Url stationLiveStream{-1, stationId, result.at("liveStreamUrl").get<std::string>(), now, Url::eLiveStream, ""};
+                    if (oldLiveStream.empty()) {
+                        storage().insert(stationLiveStream);
+                    }
+                    else if (oldLiveStream.front().needsUpdate(stationLiveStream)) {
+                        stationLiveStream._id = oldLiveStream.front()._id;
+                        storage().update(stationLiveStream);
+                    }
                 }
                 for (const auto& stream : result.at("streams")) {
                     Stream s;
@@ -484,7 +493,7 @@ void ReLiveDB::doRefreshStationInfo(const ghc::net::uri& station, int64_t statio
                                    stream.at("checksumChatData").get<int64_t>(),
                                    stream.at("checksumMediaData").get<int64_t>(),
                                    getTime(),
-                                   0,
+                                   stream.value("anonymize", false) ? Stream::eHideNewTracks : 0,
                                    ""};
                         auto oldStream = storage().get_all<Stream>(where(c(&Stream::_reliveId) == reliveId and c(&Stream::_stationId) == stationId));
                         if (oldStream.empty()) {

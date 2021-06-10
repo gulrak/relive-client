@@ -130,7 +130,7 @@ struct Stream
 
 struct Url
 {
-    enum Type { eStationAPI, eWeb, eMedia, eStream, eLogo };
+    enum Type { eStationAPI, eWeb, eMedia, eLiveStream, eLogo };
     int64_t _id = -1;
     int64_t _ownerId = 0;
     std::string _url;
