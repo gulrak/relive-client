@@ -14,7 +14,7 @@ add_executable(reLiveG MACOSX_BUNDLE ${reLiveG_ICON}
     ${TRACY_CPP}
 )
 
-target_link_libraries(reLiveG imguix resourcedata relive-backend ${SSL_BACKEND} ${AUDIO_BACKEND_LIBRARIES} ${SQLITE3_TARGET} Threads::Threads)
+target_link_libraries(reLiveG imguix resourcedata relive-backend ${SSL_BACKEND} ${AUDIO_BACKEND_LIBRARIES} ${SQLITE3_TARGET} Threads::Threads ${CMAKE_DL_LIBS})
 
 if(APPLE)
     set_target_properties(reLiveG PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${PROJECT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in")

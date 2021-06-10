@@ -27,5 +27,5 @@ set(RELIVE_BACKEND_THIRDPARTY
 add_library(relive-backend STATIC ${RELIVE_BACKEND_SOURCE} ${RELIVE_BACKEND_HEADER} ${RELIVE_BACKEND_THIRDPARTY} ${SQLITE3_SOURCES})
 set_source_files_properties(relivedb.cpp PROPERTIES COMPILE_FLAGS "-O1")
 target_compile_options(relive-backend PRIVATE -DSQLITE_OMIT_LOAD_EXTENSION)
-target_link_libraries(relive-backend PRIVATE ${SSL_BACKEND} ${SQLITE3_TARGET})
+target_link_libraries(relive-backend PRIVATE ${SSL_BACKEND} ${SQLITE3_TARGET} ${CMAKE_DL_LIBS})
 
