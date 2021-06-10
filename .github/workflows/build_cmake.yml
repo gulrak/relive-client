@@ -1,0 +1,45 @@
+name: CMake Build Matrix
+
+on: [push, pull_request]
+
+jobs:
+  build-ubuntu-20:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          submodules: true
+      - name: configure
+        run: mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_TESTS=ON -DCMAKE_CXX_COMPILER="g++-9" -DCMAKE_C_COMPILER="gcc-9" ..
+      - name: build
+        run: cmake --build build
+      - name: test
+        run: cd build && ctest
+
+  build-ubuntu-18:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          submodules: true
+      - name: install
+        run: sudo apt-get -y install gcc-8 g++-8
+      - name: configure
+        run: mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_TESTS=ON -DCMAKE_CXX_COMPILER="g++-8" -DCMAKE_C_COMPILER="gcc-8" ..
+      - name: build
+        run: cmake --build build
+      - name: test
+        run: cd build && ctest
+
+  build-macos:
+    runs-on: macOS-latest
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          submodules: true
+      - name: configure
+        run: mkdir build && cd build && cmake -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_TESTS=ON ..
+      - name: build
+        run: cmake --build build
+      - name: test
+        run: cd build && ctest

@@ -14,6 +14,8 @@
 #include <thread>
 #include <vector>
 
+using namespace relive;
+
 int main(int argc, char* argv[])
 {
     try {

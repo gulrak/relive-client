@@ -9,6 +9,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 if(POLICY CMP0072)
     cmake_policy(SET CMP0072 NEW)
 endif()
+if(POLICY CMP0110)
+    cmake_policy(SET CMP0110 NEW)
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 include(CreateVersion)
@@ -172,6 +175,7 @@ add_subdirectory(src/backend)
 add_subdirectory(src/frontend)
 
 if(BUILD_WITH_TESTS)
+    enable_testing()
     add_subdirectory(test)
 endif()
 
