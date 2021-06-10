@@ -86,6 +86,7 @@ if(NOT OPENSSL_FOUND OR NOT USE_OPENSSL)
         FetchContent_Populate(libressl)
         add_subdirectory(${libressl_SOURCE_DIR} ${libressl_BINARY_DIR})
         include_directories(${libressl_SOURCE_DIR}/include)
+        set(SSL_BACKEND crypto ssl)
     endif()
 endif()
 
