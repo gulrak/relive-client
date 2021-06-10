@@ -21,9 +21,10 @@ if(APPLE)
     install(FILES ${PROJECT_SOURCE_DIR}/LICENSE DESTINATION "." COMPONENT relivecui_app)
 else()
     install(TARGETS relivecui DESTINATION bin COMPONENT relivecui_app)
-endif()
-if(UNIX AND NOT APPLE)
-    install(FILES ${PROJECT_SOURCE_DIR}/man/relivecui.1 DESTINATION shared/man/man1 COMPONENT relivecui_app)
+    if(UNIX)
+        install(FILES ${PROJECT_SOURCE_DIR}/man/relivecui.1 DESTINATION shared/man/man1 COMPONENT relivecui_app)
+        set(CPACK_COMPONENT_RELIVECUI_APP_DESCRIPTION "A curses based stream replayer for reLive archives (http://relive.nu)")
+    endif()
 endif()
 
 
