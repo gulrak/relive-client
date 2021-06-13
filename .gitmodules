@@ -4,6 +4,3 @@
 [submodule "thirdparty/glfw"]
 	path = thirdparty/glfw
 	url = https://github.com/glfw/glfw.git
-[submodule "thirdparty/rtaudio"]
-	path = thirdparty/rtaudio
-	url = https://github.com/gulrak/rtaudio.git
