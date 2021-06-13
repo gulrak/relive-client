@@ -201,7 +201,7 @@ std::string dataPath()
 #ifdef GHC_OS_WINDOWS
     auto localAppData = getSysEnv("localappdata");
     if (!localAppData.empty()) {
-		dir = fs::path(localAppData) / appName();
+		dir = (fs::path(localAppData) / appName()).string();
 	}
     else {
         throw std::runtime_error("Need %localappdata% to create configuration directory!");

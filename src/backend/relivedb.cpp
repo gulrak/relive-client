@@ -9,6 +9,11 @@
 #include "rldata.hpp"
 #include "system.hpp"
 
+#ifdef WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#endif
+
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <httplib.h>
 #include <sqlite_orm/sqlite_orm.h>

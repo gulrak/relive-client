@@ -4,6 +4,10 @@
 #include <cmath>
 #include <cstring>
 
+#ifndef M_PI
+#define M_PI 3.14153
+#endif
+
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 

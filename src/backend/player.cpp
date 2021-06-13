@@ -15,6 +15,11 @@ namespace fs = ghc::filesystem;
 #define MINIMP3_IMPLEMENTATION
 #include <minimp3.h>
 
+#ifdef WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#endif
+
 #ifdef __APPLE__
 #define MA_NO_RUNTIME_LINKING
 #endif
