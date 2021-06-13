@@ -4,7 +4,7 @@ _Live show replay clients for experiencing past scene-related shows and podcasts
 
 ![Supported Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue.svg)
 ![License: BSD-3](https://img.shields.io/badge/License-BSD3-blue.svg)
-[![CMake Build Matrix](https://github.com/fuersten/csvsqldb/workflows/CMake%20Build%20Matrix/badge.svg?branch=modernize)](https://github.com/fuersten/csvsqldb/actions)
+[![CMake Build Matrix](https://github.com/gulrak/relive-client/workflows/CMake%20Build%20Matrix/badge.svg?branch=master)](https://github.com/gulrak/relive-client/actions)
 
 This repository collects my current work on reLive client software. It is a full rework of the original code I wrote for the now retired [reLiveQt](https://relive.gulrak.net/reliveqt).
 
@@ -16,7 +16,9 @@ but starting with the `dev-reliveg-wip` branch, the work on a new graphical clie
 reLiveG is a live show replay client for experiencing past scene-related shows and podcasts.
 
 It is implemented as a new graphical client and currently starting beta phase. Initially
-it supports only macOS, but Windows and Linux support is planned.
+it supported only macOS, but the Linux version is quite usable right now too, so beta testing
+for Linux starts soon. Windows builds compile and kinda work now, but they still don't behave
+well enough for an open testing, I'll keep working on that.
 
 ### Features
 
