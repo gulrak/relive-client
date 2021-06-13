@@ -2,10 +2,11 @@
 
 _Live show replay clients for experiencing past scene-related shows and podcasts from [reLive](http://relive.nu)._
 
-![Cirrus-CI macOS](https://api.cirrus-ci.com/github/gulrak/relive-client.svg?branch=master&task=macOS)
-![Cirrus-CI Linux](https://api.cirrus-ci.com/github/gulrak/relive-client.svg?branch=master&task=Ubuntu)
+![Supported Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue.svg)
+![License: BSD-3](https://img.shields.io/badge/License-BSD3-blue.svg)
+[![CMake Build Matrix](https://github.com/fuersten/csvsqldb/workflows/CMake%20Build%20Matrix/badge.svg?branch=modernize)](https://github.com/fuersten/csvsqldb/actions)
 
-This repository collects my current work on reLive client software. It is a full rework of the original code I wrote for [reLiveQt](https://relive.gulrak.net/reliveqt).
+This repository collects my current work on reLive client software. It is a full rework of the original code I wrote for the now retired [reLiveQt](https://relive.gulrak.net/reliveqt).
 
 Originally there was only a curses based client, named **reLiveCUI**, developed and tested on macOS and Ubuntu 18.04,
 but starting with the `dev-reliveg-wip` branch, the work on a new graphical client named **reLiveG** has begun.

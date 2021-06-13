@@ -27,7 +27,7 @@ jobs:
       - name: install
         run: sudo apt-get -y install gcc-8 g++-8 xorg-dev libglu1-mesa-dev ncurses-dev
       - name: configure
-        run: mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_TESTS=ON -DCMAKE_CXX_COMPILER="g++-8" -DCMAKE_C_COMPILER="gcc-8" ..
+        run: mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_TESTS=ON -DCURSES_USE_NCURSES=ON -DCMAKE_CXX_COMPILER="g++-8" -DCMAKE_C_COMPILER="gcc-8" ..
       - name: build
         run: cmake --build build
       - name: test
