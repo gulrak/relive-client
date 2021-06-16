@@ -8,14 +8,8 @@
 #include "logging.hpp"
 #include "rldata.hpp"
 #include "system.hpp"
+#include "netutility.hpp"
 
-#ifdef WIN32
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#endif
-
-#define CPPHTTPLIB_OPENSSL_SUPPORT
-#include <httplib.h>
 #include <sqlite_orm/sqlite_orm.h>
 #include <atomic>
 #include <chrono>
@@ -145,11 +139,12 @@ void ReLiveDB::deepFetch(Station& station, bool withoutStreams)
     for (const auto& api : apis) {
         station._api.push_back(api._url);
     }
+    station._liveStream = storage().get_all<Url>(where(c(&Url::_ownerId) == station._id and c(&Url::_type) == int(Url::eLiveStream)));
 }
 
 void ReLiveDB::deepFetch(Stream& stream, bool parentsOnly)
 {
-    {
+    if(!stream._isLiveStream) {
         std::lock_guard<Mutex> lock{_mutex};
         if (!parentsOnly) {
             stream._tracks = storage().get_all<Track>(where(c(&Track::_streamId) == stream._id), order_by(&Track::_time));
@@ -175,16 +170,18 @@ void ReLiveDB::deepFetch(Stream& stream, bool parentsOnly)
 
 void ReLiveDB::deepFetch(Track& track)
 {
-    {
-        std::lock_guard<Mutex> lock{_mutex};
-        track._stream.reset();
-        auto stream = storage().get_pointer<Stream>(track._streamId);
-        if (stream) {
-            track._stream = std::make_shared<Stream>(*stream);
+    if(!track._isLiveStream) {
+        {
+            std::lock_guard<Mutex> lock{_mutex};
+            track._stream.reset();
+            auto stream = storage().get_pointer<Stream>(track._streamId);
+            if (stream) {
+                track._stream = std::make_shared<Stream>(*stream);
+            }
         }
-    }
-    if (track._stream) {
-        deepFetch(*track._stream, true);
+        if (track._stream) {
+            deepFetch(*track._stream, true);
+        }
     }
 }
 
@@ -238,16 +235,7 @@ std::vector<ChatMessage> ReLiveDB::fetchChat(const Stream& stream)
         auto uri = ghc::net::uri(station->_api[0]);
         DEBUG_LOG(2, uri.request_path() << "/getstreamchat?v=11&streamid=" << stream._reliveId);
         http::Headers headers = {{"User-Agent", relive::userAgent()}};
-        std::shared_ptr<http::Response> res;
-        if (uri.scheme() == "https") {
-            http::SSLClient cli(uri.host().c_str(), uri.port());
-            cli.enable_server_certificate_verification(false);
-            res = cli.Get((uri.request_path() + "/getstreamchat?v=11&streamid=" + std::to_string(stream._reliveId)).c_str());
-        }
-        else {
-            http::Client cli(uri.host().c_str(), uri.port());
-            res = cli.Get((uri.request_path() + "/getstreamchat?v=11&streamid=" + std::to_string(stream._reliveId)).c_str());
-        }
+        auto res = createClient(uri)->Get((uri.request_path() + "/getstreamchat?v=11&streamid=" + std::to_string(stream._reliveId)).c_str());
         if (res && res->status == 200) {
             try {
                 auto result = json::parse(res->body);
@@ -361,16 +349,7 @@ void ReLiveDB::refreshStations(std::function<void()> yield, bool force)
 void ReLiveDB::doRefreshStations()
 {
     http::Headers headers = {{"User-Agent", relive::userAgent()}};
-    std::shared_ptr<http::Response> res;
-    if (_master.scheme() == "https") {
-        http::SSLClient cli(_master.host().c_str(), _master.port());
-        cli.enable_server_certificate_verification(false);
-        res = cli.Get("/getstations/?v=11");
-    }
-    else {
-        http::Client cli(_master.host().c_str(), _master.port());
-        res = cli.Get("/getstations/?v=11");
-    }
+    auto res = createClient(_master)->Get("/getstations/?v=11");
     if (res && res->status == 200) {
         try {
             auto result = json::parse(res->body);
@@ -434,26 +413,17 @@ void ReLiveDB::doRefreshStationInfo(const ghc::net::uri& station, int64_t statio
 {
     DEBUG_LOG(2, station.request_path() << "getstationinfo?v=11");
     http::Headers headers = {{"User-Agent", relive::userAgent()}};
-    std::shared_ptr<http::Response> res;
-    if (station.scheme() == "https") {
-        http::SSLClient cli(station.host().c_str(), station.port());
-        cli.enable_server_certificate_verification(false);
-        res = cli.Get((station.request_path() + "getstationinfo?v=11").c_str());
-    }
-    else {
-        http::Client cli(station.host().c_str(), station.port());
-        res = cli.Get((station.request_path() + "getstationinfo?v=11").c_str());
-    }
+    auto res = createClient(station)->Get((station.request_path() + "getstationinfo?v=11").c_str());
     if (res && res->status == 200) {
         try {
             auto result = json::parse(res->body);
-            std::string stationName = result["stationName"].get<std::string>();
+            auto stationName = result["stationName"].get<std::string>();
             DEBUG_LOG(2, stationName << ": " << result["streams"].size() << " streams");
             {
                 auto now = getTime();
                 {
                     std::lock_guard<Mutex> lock{_mutex};
-                    Station st = storage().get<Station>(stationId);
+                    auto st = storage().get<Station>(stationId);
                     st._protocol = result.at("version").get<int>();
                     st._lastUpdate = now;
                     storage().update(st);
@@ -549,16 +519,7 @@ void ReLiveDB::doRefreshStreamInfo(const ghc::net::uri& station, int64_t reliveI
 {
     DEBUG_LOG(2, station.request_path() << "getstationinfo?v=11");
     http::Headers headers = {{"User-Agent", relive::userAgent()}};
-    std::shared_ptr<http::Response> res;
-    if (station.scheme() == "https") {
-        http::SSLClient cli(station.host().c_str(), station.port());
-        cli.enable_server_certificate_verification(false);
-        res = cli.Get((station.request_path() + "getstreaminfo?v=11&streamid=" + std::to_string(reliveId)).c_str());
-    }
-    else {
-        http::Client cli(station.host().c_str(), station.port());
-        res = cli.Get((station.request_path() + "getstreaminfo?v=11&streamid=" + std::to_string(reliveId)).c_str());
-    }
+    auto res = createClient(station)->Get((station.request_path() + "getstreaminfo?v=11&streamid=" + std::to_string(reliveId)).c_str());
     if (res && res->status == 200) {
         try {
             auto result = json::parse(res->body);

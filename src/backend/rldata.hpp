@@ -64,6 +64,7 @@ struct Track
     std::string _metaInfo;
     
     // deep fetch data:
+    bool _isLiveStream = false;
     int64_t _duration = 0;
     std::shared_ptr<Stream> _stream;
     
@@ -99,6 +100,7 @@ struct Stream
     std::string _metaInfo;
     
     // deep fetch data:
+    bool _isLiveStream = false;
     std::vector<std::string> _media;
     std::vector<Track> _tracks;
     std::shared_ptr<Station> _station;
@@ -159,6 +161,7 @@ struct Station
     // deep fetch data:
     std::string _webSiteUrl;
     std::vector<std::string> _api;
+    std::vector<Url> _liveStream;
     std::vector<Stream> _streams;
     
     bool needsUpdate(const Station& ns)

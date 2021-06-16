@@ -12,7 +12,6 @@
 #include <GLFW/glfw3.h>
 #include <imguix/imguix.h>
 #include <resources/feather_icons.h>
-#include <rtaudio/RtAudio.h>
 #include <backend/hash.hpp>
 #include <backend/logging.hpp>
 #include <backend/system.hpp>
@@ -335,6 +334,8 @@ void ReLiveApp::handleInput(ImGuiIO& io)
     setClearColor(ImGui::ColorConvertFloat4ToU32(ImGui::GetStyle().Colors[ImGuiCol_WindowBg]));
     if (_lateSetup) {
         _lateSetup = false;
+        _player.setSource(Player::eSCastStream, ghc::net::uri("https://sj-1.scenesat.com/scenesatmax"));
+        /*
         auto defaultStation = _rdb.getConfigValue(Keys::default_station, std::string());
         auto savedPosition = _rdb.getConfigValue(Keys::play_position, std::string());
         if (savedPosition.empty() || !_startAtLastPosition || !openURL(savedPosition, false)) {
@@ -345,6 +346,7 @@ void ReLiveApp::handleInput(ImGuiIO& io)
                 }
             }
         }
+         */
     }
     if (currentTime() - _lastFetch > 3600) {
         DEBUG_LOG(1, "Fetching station info...");
@@ -482,23 +484,35 @@ void ReLiveApp::renderPlayControl()
     ImGui::EndGroup();
 }
 
+void ReLiveApp::renderTopPanelShadow()
+{
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    auto pos = ImGui::GetWindowPos();
+    drawList->AddRectFilledMultiColor(ImVec2(pos.x, pos.y), ImVec2(pos.x + _width, pos.y + PANEL_SHADOW), IM_COL32(0, 0, 0, 100), IM_COL32(0, 0, 0, 100), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0));
+}
+
+void ReLiveApp::renderBottomPanelShadow()
+{
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    auto pos = ImGui::GetWindowPos();
+    auto height = ImGui::GetWindowHeight();
+    drawList->AddRectFilledMultiColor(ImVec2(pos.x, pos.y + height - PANEL_SHADOW), ImVec2(pos.x + _width, pos.y + height), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 100),
+                                      IM_COL32(0, 0, 0, 100));
+}
+
 void ReLiveApp::renderStations(ImVec2 pageSize)
 {
     ZoneScopedN("renderStations");
     setWindowTitle(RELIVE_APP_NAME " " RELIVE_VERSION_STRING_LONG " - \u00a9 2020 by Gulrak");
-    ImGui::BeginTable("StationsTable", 3, ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollFreezeTopRow, pageSize);
+    ImGui::BeginTable("StationsTable", 3, ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY /*| ImGuiTableFlags_ScrollFreezeTopRow*/, pageSize);
     ImGui::TableSetupColumn("Station Name##station", ImGuiTableColumnFlags_WidthStretch, 0.5f);
     ImGui::TableSetupColumn("Streams##station", ImGuiTableColumnFlags_WidthFixed, 80);
     ImGui::TableSetupColumn("URL##station", ImGuiTableColumnFlags_WidthStretch, 0.5f);
+    ImGui::TableSetupScrollFreeze(3, 1);
+
     ImGui::PushFont(_headerFont);
-    ImGui::TableNextRow(0, 20);
-    for (int i = 0; i < 3; ++i) {
-        ImGui::TableSetColumnIndex(i);
-        const char* column_name = ImGui::TableGetColumnName(i);
-        ImGui::PushID(i);
-        ImGui::TableHeader(column_name);
-        ImGui::PopID();
-    }
+    ImGui::TableHeadersRow();
+    renderTopPanelShadow();
     ImGui::PopFont();
     for (const auto& station : _stations) {
         ImGui::TableNextRow();
@@ -519,6 +533,7 @@ void ReLiveApp::renderStations(ImVec2 pageSize)
             ImGui::PopStyleColor();
         }
     }
+    renderBottomPanelShadow();
     ImGui::EndTable();
 }
 
@@ -527,31 +542,46 @@ void ReLiveApp::renderStreams(ImVec2 pageSize)
     ZoneScopedN("renderStreams");
     std::string station = _activeStation && !_streams.empty() ? _streams.front()._station->_name : "reLive - <no station selected>";
     setWindowTitle(station);
-    ImGui::BeginTable("StreamsTable", 6, ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollFreezeTopRow, pageSize);
+    ImGui::BeginTable("StreamsTable", 6, ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY /*| ImGuiTableFlags_ScrollFreezeTopRow*/, pageSize);
     ImGui::TableSetupColumn(" ##Streams", ImGuiTableColumnFlags_WidthFixed, 20);
     ImGui::TableSetupColumn("    Date##Streams", ImGuiTableColumnFlags_WidthFixed, 90);
     ImGui::TableSetupColumn("Hosts##Streams", ImGuiTableColumnFlags_WidthStretch, 0.35f);
     ImGui::TableSetupColumn("Title##Streams", ImGuiTableColumnFlags_WidthStretch, 0.40f);
     ImGui::TableSetupColumn("Duration##Streams", ImGuiTableColumnFlags_WidthFixed, 80);
     ImGui::TableSetupColumn("Chat##Streams", ImGuiTableColumnFlags_WidthFixed, 60);
+    ImGui::TableSetupScrollFreeze(6, 1);
     ImGui::PushFont(_headerFont);
-    ImGui::TableNextRow(0, 20);
-    for (int i = 0; i < 6; ++i) {
-        ImGui::TableSetColumnIndex(i);
-        const char* column_name = ImGui::TableGetColumnName(i);
-        ImGui::PushID(i);
-        ImGui::TableHeader(column_name);
-        ImGui::PopID();
-    }
+    ImGui::TableHeadersRow();
+    renderTopPanelShadow();
     ImGui::PopFont();
     static const char* playAnim[4] = {ICON_FTH_VOLUME "##strm", ICON_FTH_VOLUME_1 "##strm", ICON_FTH_VOLUME_2 "##strm", "##strm"};
+    if(!_streams.empty() && _streams.front()._station && !_streams.front()._station->_liveStream.empty()) {
+        ImGui::TableNextRow();
+        _style.pushColor(ImGuiCol_Text, reLiveCol_TableUnplayed);
+        ImGui::TableSetColumnIndex(0);
+        if (ImGui::Selectable((std::string(false ? playAnim[std::time(nullptr) % 3] : playAnim[3]) + std::to_string(-42)).c_str(), false, ImGuiSelectableFlags_SpanAllColumns)) {
+            //selectStream(stream);
+            //savePosition();
+        }
+        ImGui::TableSetColumnIndex(1);
+        ImGui::Text("- - NOW - -");
+        ImGui::TableSetColumnIndex(2);
+        ImGui::Text("");
+        ImGui::TableSetColumnIndex(3);
+        ImGui::Text("LIVE STREAM");
+        ImGui::TableSetColumnIndex(4);
+        ImGui::Text("");
+        ImGui::TableSetColumnIndex(5);
+        ImGui::Text("   -");
+        ImGui::PopStyleColor();
+    }
     for (auto& stream : _streams) {
         ImGui::TableNextRow();
         bool isActive = false;
         static int64_t lastActiveStream = 0;
         if (stream._id == _activeStream) {
             if (lastActiveStream != _activeStream /*!_wheelAction*/) {
-                ImGui::SetScrollHere();
+                ImGui::SetScrollHereY();
                 lastActiveStream = _activeStream;
             }
             _style.pushColor(ImGuiCol_Text, reLiveCol_TableActiveLine);
@@ -579,6 +609,7 @@ void ReLiveApp::renderStreams(ImVec2 pageSize)
         ImGui::Text("   %s", stream._chatChecksum ? ICON_FTH_CHECK : "-");
         ImGui::PopStyleColor();
     }
+    renderBottomPanelShadow();
     ImGui::EndTable();
 }
 
@@ -589,22 +620,17 @@ void ReLiveApp::renderTracks(ImVec2 pageSize)
 
     std::string stream = !_tracks.empty() ? _tracks.front()._stream->_station->_name + ": " + _tracks.front()._stream->_name + " [" + formattedDate(_tracks.front()._stream->_timestamp) + "]" : "reLive - <no stream selected>";
     setWindowTitle(stream);
-    ImGui::BeginTable("TracksTable", 6, ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollFreezeTopRow, pageSize);
+    ImGui::BeginTable("TracksTable", 6, ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY /*| ImGuiTableFlags_ScrollFreezeTopRow*/, pageSize);
     ImGui::TableSetupColumn(" ##tracks", ImGuiTableColumnFlags_WidthFixed, 20);
     ImGui::TableSetupColumn("  Time##tracks", ImGuiTableColumnFlags_WidthFixed, 80);
     ImGui::TableSetupColumn("Artist##tracks", ImGuiTableColumnFlags_WidthStretch, 0.35f);
     ImGui::TableSetupColumn("Title##tracks", ImGuiTableColumnFlags_WidthStretch, 0.40f);
     ImGui::TableSetupColumn("Duration##tracks", ImGuiTableColumnFlags_WidthFixed, 80);
     ImGui::TableSetupColumn("Type##tracks", ImGuiTableColumnFlags_WidthFixed, 60);
+    ImGui::TableSetupScrollFreeze(6, 1);
     ImGui::PushFont(_headerFont);
-    ImGui::TableNextRow(0, 20);
-    for (int i = 0; i < 6; ++i) {
-        ImGui::TableSetColumnIndex(i);
-        const char* column_name = ImGui::TableGetColumnName(i);
-        ImGui::PushID(i);
-        ImGui::TableHeader(column_name);
-        ImGui::PopID();
-    }
+    ImGui::TableHeadersRow();
+    renderTopPanelShadow();
     ImGui::PopFont();
     static const char* playAnim[4] = {ICON_FTH_VOLUME "##trk", ICON_FTH_VOLUME_1 "##trk", ICON_FTH_VOLUME_2 "##strm", "##trk"};
     for (auto& track : _tracks) {
@@ -613,7 +639,7 @@ void ReLiveApp::renderTracks(ImVec2 pageSize)
         if (track._id == _activeTrack) {
             static int64_t lastActiveTrack = 0;
             if (lastActiveTrack != _activeTrack && !_wheelAction) {
-                ImGui::SetScrollHere();
+                ImGui::SetScrollHereY();
                 lastActiveTrack = _activeTrack;
             }
             _style.pushColor(ImGuiCol_Text, reLiveCol_TableActiveLine);
@@ -650,6 +676,7 @@ void ReLiveApp::renderTracks(ImVec2 pageSize)
             ImGui::PopStyleColor();
         }
     }
+    renderBottomPanelShadow();
     ImGui::EndTable();
 }
 
@@ -687,6 +714,8 @@ void ReLiveApp::renderChat(ImVec2 pageSize)
         }
         yoffset += _messageSizes[i].y;
     }
+    renderTopPanelShadow();
+    renderBottomPanelShadow();
     ImGui::EndChild();
 }
 
@@ -744,7 +773,7 @@ void ReLiveApp::renderMainWindow()
 
     auto style = ImGui::GetStyle();
     ImGui::SetNextWindowPos(ImVec2(0, 0));
-    ImGui::SetNextWindowSize(ImVec2(_width - 1, _height));
+    ImGui::SetNextWindowSize(ImVec2(_width, _height));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1);
     ImGui::Begin("Main Window", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBringToFrontOnFocus);
@@ -974,12 +1003,6 @@ void ReLiveApp::renderMainWindow()
 
     ImGui::SetCursorPos(ImVec2(_width - PLAY_CONTROLS_WIDTH, _height - BOTTOM_PANEL_HEIGHT + 14));
     renderPlayControl();
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-    auto pos = ImGui::GetWindowPos();
-    drawList->AddRectFilledMultiColor(ImVec2(pos.x, pos.y + TOP_PANEL_HEIGHT), ImVec2(pos.x + _width, pos.y + TOP_PANEL_HEIGHT + PANEL_SHADOW), IM_COL32(0, 0, 0, 128), IM_COL32(0, 0, 0, 128), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0));
-
-    drawList->AddRectFilledMultiColor(ImVec2(pos.x, pos.y + _height - BOTTOM_PANEL_HEIGHT - PANEL_SHADOW), ImVec2(pos.x + _width, pos.y + _height - BOTTOM_PANEL_HEIGHT), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 128),
-                                      IM_COL32(0, 0, 0, 128));
 
     ImGui::End();
     ImGui::PopStyleVar(2);

@@ -23,4 +23,6 @@ void dataPath(const std::string& path);
 std::string dataPath();
 bool isInstanceRunning();
 
+std::string heuristicUtf8(const std::string& str);
+
 }

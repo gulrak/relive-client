@@ -251,4 +251,19 @@ bool isInstanceRunning()
 #endif
 }
 
+std::string heuristicUtf8(const std::string& str)
+{
+    if(fs::detail::validUtf8(str)) {
+        return str;
+    }
+    else {
+        std::string result;
+        result.reserve(str.size());
+        for(char c : str) {
+            fs::detail::appendUTF8(result, static_cast<uint8_t>(c));
+        }
+        return result;
+    }
+}
+
 }

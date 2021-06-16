@@ -67,6 +67,8 @@ private:
     void scanForMaxNickSize();
     void recalcMessageSize();
     void renderAppMenu();
+    void renderTopPanelShadow();
+    void renderBottomPanelShadow();
 
     float _width = 0;
     float _height = 0;
@@ -88,6 +90,7 @@ private:
     std::vector<Station> _stations;
     int64_t _activeStation = 0;
     std::vector<Stream> _streams;
+    Stream _liveStream;
     int64_t _activeStream = 0;
     std::vector<Track> _tracks;
     int64_t _activeTrack = 0;

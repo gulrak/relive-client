@@ -1,8 +1,8 @@
 #include "application.h"
 
-#include "../thirdparty/imgui/imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_metal.h"
+#include <imgui/imgui.h>
+#include <imgui/backends/imgui_impl_glfw.h>
+#include <imgui/backends/imgui_impl_metal.h>
 
 #define GLFW_INCLUDE_NONE
 #define GLFW_EXPOSE_NATIVE_COCOA

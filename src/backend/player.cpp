@@ -15,10 +15,7 @@ namespace fs = ghc::filesystem;
 #define MINIMP3_IMPLEMENTATION
 #include <minimp3.h>
 
-#ifdef WIN32
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#endif
+#include <backend/netutility.hpp>
 
 #ifdef __APPLE__
 #define MA_NO_RUNTIME_LINKING
@@ -28,9 +25,6 @@ namespace fs = ghc::filesystem;
 #define MA_NO_FLAC
 #define MINIAUDIO_IMPLEMENTATION
 #include <mackron/miniaudio.h>
-
-#define CPPHTTPLIB_OPENSSL_SUPPORT
-#include <httplib.h>
 
 #include <algorithm>
 #include <atomic>
@@ -421,13 +415,9 @@ void Player::setSource(Mode mode, ghc::net::uri source, int64_t size)
             _impl->_size = fs::file_size(_impl->_source.request_path());
             break;
         case eReLiveStream:
-            _impl->_session = std::make_shared<httplib::Client>(source.host().c_str(), source.port());
-            break;
         case eMediaStream:
-            _impl->_session = std::make_shared<httplib::Client>(source.host().c_str(), source.port());
-            break;
         case eSCastStream:
-            _impl->_session = std::make_shared<httplib::Client>(source.host().c_str(), source.port());
+            _impl->_session = createClient(source);
             break;
         default:
             break;
@@ -597,7 +587,7 @@ void Player::streamSCast()
                 if (inMetaData) {
                     if (!block) {
                         block = static_cast<unsigned char>(*data) * 16;
-                        // std::clog << "Metadata-length: " << block << std::endl;
+                        DEBUG_LOG(3, "Metadata-length: " << block);
                         ++data;
                         --data_length;
                         if (!block) {
@@ -610,7 +600,7 @@ void Player::streamSCast()
                     }
                     else {
                         if (data_length < block) {
-                            // std::clog << "Metadata: " << " [" << block << (inMetaData ? "M" : "-") << "]" << std::endl;
+                            DEBUG_LOG(3, "Metadata: " << " [" << block << (inMetaData ? "M" : "-") << "]");
                             metaData.append(data, data_length);
                             data += data_length;
                             block -= static_cast<size_t>(data_length);
@@ -618,7 +608,7 @@ void Player::streamSCast()
                         }
                         else {
                             metaData.append(data, block);
-                            // std::clog << "MetaData: " << metaData.c_str()  << " [" << metaData.size() << " Bytes]" << std::endl;
+                            DEBUG_LOG(3, "Metadata: " << heuristicUtf8(metaData.c_str())  << " [" << metaData.size() << " Bytes]");
                             data += block;
                             data_length -= block;
                             block = metaint;

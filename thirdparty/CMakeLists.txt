@@ -45,11 +45,12 @@ endif()
 add_executable(binary_to_compressed_c imgui/misc/fonts/binary_to_compressed_c.cpp)
 
 set(IMGUI_SOURCES
-        imgui/examples/imgui_impl_glfw.cpp
+        imgui/backends/imgui_impl_glfw.cpp
         imgui/imgui.cpp
         imgui/imgui_demo.cpp
         imgui/imgui_draw.cpp
         imgui/imgui_widgets.cpp
+        imgui/imgui_tables.cpp
         imgui/imgui.h
         imgui/imgui_internal.h
         imgui/misc/cpp/imgui_stdlib.cpp
@@ -61,9 +62,9 @@ if(PREFER_OPENGL3_BACKEND)
 endif()
 
 if(APPLE AND NOT PREFER_OPENGL3_BACKEND)
-    list(APPEND IMGUI_SOURCES imgui/examples/imgui_impl_metal.mm imgui/examples/imgui_impl_metal.h)
+    list(APPEND IMGUI_SOURCES imgui/backends/imgui_impl_metal.mm imgui/backends/imgui_impl_metal.h)
 else()
-    list(APPEND IMGUI_SOURCES imgui/examples/imgui_impl_opengl3.cpp imgui/examples/imgui_impl_opengl3.h imgui/examples/libs/gl3w/GL/gl3w.c)
+    list(APPEND IMGUI_SOURCES imgui/backends/imgui_impl_opengl3.cpp imgui/backends/imgui_impl_opengl3.h imgui/examples/libs/gl3w/GL/gl3w.c)
 endif()
 
 add_library(imgui ${IMGUI_SOURCES})
